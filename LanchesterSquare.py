@@ -19,6 +19,10 @@ class LanchesterSquare:
         alpha (float): Effectiveness coefficient of A against B
         beta (float): Effectiveness coefficient of B against A
         """
+        if A0 < 0 or B0 < 0:
+            raise ValueError("Initial strengths must be non-negative.")
+        if alpha < 0 or beta < 0:
+            raise ValueError("Effectiveness coefficients must be non-negative.")
         self.A0 = A0
         self.B0 = B0
         self.alpha = alpha
