@@ -1,6 +1,9 @@
 # Lanchester simulations
 
-Combat model simulations.
+Combat simulations using the models:
+* Lanchester linear law
+* Lanchester square law
+* Salvo Combat model
 
 ## Resources
 
@@ -11,3 +14,4 @@ Combat model simulations.
 * Helmbold, Robert L. (14 February 1961a). Lanchester Parameters for Some Battles of the Last Two Hundred Years. CORG Staff Paper CORG-SP-122.
 * Helmbold, Robert L. (1961b). "Lanchester's Equations, Historical Battles, and War Games". Proceedings of the Eighth Military Operations Research Society Symposium, 18–20 October 1961.
 * Alan Washburn, 2000. Lanchester Systems [link](https://faculty.nps.edu/awashburn/Files/Notes/Lanchester.pdf)
+* Combat science: the emergence of Operational Research in World War II Erik P. Rau [rau2005]
