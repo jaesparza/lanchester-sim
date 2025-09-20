@@ -27,24 +27,41 @@ class LanchesterSquare:
         self.B0 = B0
         self.alpha = alpha
         self.beta = beta
-    
-    def analytical_solution(self, t_max=None):
+
+    def calculate_battle_outcome(self):
         """
-        Analytical solution for the Square Law.
-        
-        Uses the Square Law relationship: α*A²(t) - β*B²(t) = α*A₀² - β*B₀²
-        
+        Calculate battle outcome based on Square Law invariant.
+
         Returns:
-        dict: Contains time arrays, force strengths, battle end time, and winner
+        tuple: (winner, remaining_strength, invariant)
         """
-        # Calculate the invariant quantity
         invariant = self.alpha * self.A0**2 - self.beta * self.B0**2
-        
-        # Determine winner based on invariant
+
         if invariant > 0:
             winner = 'A'
-            # A wins when B = 0, so A_final = sqrt(invariant/alpha)
             remaining_strength = np.sqrt(invariant / self.alpha)
+        elif invariant < 0:
+            winner = 'B'
+            remaining_strength = np.sqrt(-invariant / self.beta)
+        else:
+            winner = 'Draw'
+            remaining_strength = 0
+
+        return winner, remaining_strength, invariant
+
+    def calculate_battle_end_time(self, winner, remaining_strength, invariant):
+        """
+        Calculate when the battle ends based on winner and invariant.
+
+        Parameters:
+        winner (str): 'A', 'B', or 'Draw'
+        remaining_strength (float): Strength of winning force
+        invariant (float): Square Law invariant
+
+        Returns:
+        float: Battle end time
+        """
+        if winner == 'A':
             # Time when B is eliminated
             if self.beta > 0:
                 # Break down complex arctanh calculation for numerical stability
@@ -59,10 +76,7 @@ class LanchesterSquare:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
                 t_end = self.B0 / (self.alpha * self.A0)  # Degenerate case
-        elif invariant < 0:
-            winner = 'B'
-            # B wins when A = 0, so B_final = sqrt(-invariant/beta)
-            remaining_strength = np.sqrt(-invariant / self.beta)
+        elif winner == 'B':
             # Time when A is eliminated
             if self.alpha > 0:
                 # Break down complex arctanh calculation for numerical stability
@@ -78,33 +92,27 @@ class LanchesterSquare:
             else:
                 t_end = self.A0 / (self.beta * self.B0)  # Degenerate case
         else:
-            winner = 'Draw'
-            remaining_strength = 0
             # Both eliminated simultaneously - use approximation for mutual annihilation
             t_end = max(self.A0/np.sqrt(self.alpha * self.B0), self.B0/np.sqrt(self.beta * self.A0))
-        
-        # For numerical stability, use a simpler approach for time calculation
-        if np.isnan(t_end) or np.isinf(t_end):
-            # Use approximate method: integrate until one force is nearly eliminated
-            if winner == 'A':
-                t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)
-            elif winner == 'B':
-                t_end = self.A0 / (np.sqrt(self.beta) * self.B0)
-            else:
-                t_end = min(self.A0 / (np.sqrt(self.beta) * self.B0), self.B0 / (np.sqrt(self.alpha) * self.A0))
-        
-        # Create time array
-        if t_max is None:
-            t_max = max(t_end * 1.2, t_end + 0.5)
-        
-        t = np.linspace(0, t_max, 1000)
-        
-        # Calculate force strengths using the Square Law relationship
-        # This is more complex than Linear Law, so we'll use a simpler approximation
-        # for visualization purposes
+
+        return t_end
+
+    def generate_force_trajectories(self, winner, remaining_strength, t_end, t):
+        """
+        Generate force strength trajectories over time.
+
+        Parameters:
+        winner (str): Battle winner
+        remaining_strength (float): Final strength of winner
+        t_end (float): Battle end time
+        t (array): Time array
+
+        Returns:
+        tuple: (A_t, B_t) arrays of force strengths
+        """
         A_t = np.zeros_like(t)
         B_t = np.zeros_like(t)
-        
+
         for i, time in enumerate(t):
             if time >= t_end:
                 if winner == 'A':
@@ -120,9 +128,45 @@ class LanchesterSquare:
                 # Approximate solution using exponential decay
                 decay_factor_A = self.beta * self.B0 * time / (1 + self.beta * self.B0 * time)
                 decay_factor_B = self.alpha * self.A0 * time / (1 + self.alpha * self.A0 * time)
-                
+
                 A_t[i] = max(0, self.A0 * (1 - decay_factor_A))
                 B_t[i] = max(0, self.B0 * (1 - decay_factor_B))
+
+        return A_t, B_t
+
+    def analytical_solution(self, t_max=None):
+        """
+        Analytical solution for the Square Law.
+
+        Uses the Square Law relationship: α*A²(t) - β*B²(t) = α*A₀² - β*B₀²
+
+        Returns:
+        dict: Contains time arrays, force strengths, battle end time, and winner
+        """
+        # Calculate battle outcome using helper method
+        winner, remaining_strength, invariant = self.calculate_battle_outcome()
+
+        # Calculate battle end time using helper method
+        t_end = self.calculate_battle_end_time(winner, remaining_strength, invariant)
+
+        # For numerical stability, use a simpler approach for time calculation
+        if np.isnan(t_end) or np.isinf(t_end):
+            # Use approximate method: integrate until one force is nearly eliminated
+            if winner == 'A':
+                t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)
+            elif winner == 'B':
+                t_end = self.A0 / (np.sqrt(self.beta) * self.B0)
+            else:
+                t_end = min(self.A0 / (np.sqrt(self.beta) * self.B0), self.B0 / (np.sqrt(self.alpha) * self.A0))
+
+        # Create time array
+        if t_max is None:
+            t_max = max(t_end * 1.2, t_end + 0.5)
+
+        t = np.linspace(0, t_max, 1000)
+
+        # Generate force trajectories using helper method
+        A_t, B_t = self.generate_force_trajectories(winner, remaining_strength, t_end, t)
         
         # Calculate casualties
         if winner == 'A':
@@ -150,14 +194,14 @@ class LanchesterSquare:
     def simple_analytical_solution(self, t_max=None):
         """
         Simplified analytical solution using the key Square Law insight.
-        
+
         For equal effectiveness (alpha = beta), the winner is determined by
         initial force sizes, and A_final = sqrt(A₀² - B₀²) if A wins.
         """
         # Calculate the Square Law invariant for equal effectiveness case
         if abs(self.alpha - self.beta) < 1e-10:  # Approximately equal
             effectiveness = self.alpha  # or self.beta, they're the same
-            
+
             if self.A0**2 > self.B0**2:
                 winner = 'A'
                 remaining_strength = np.sqrt(self.A0**2 - self.B0**2)
@@ -171,21 +215,22 @@ class LanchesterSquare:
                 winner = 'Draw'
                 remaining_strength = 0
                 t_end = 1.0 / (effectiveness * np.sqrt(self.A0 * self.B0))
+
+            invariant = self.alpha * self.A0**2 - self.beta * self.B0**2
         else:
             # Use general case (fallback to original method)
             return self.analytical_solution(t_max)
-        
+
         # Create time array
         if t_max is None:
             t_max = max(t_end * 1.5, 2.0)
-        
+
         t = np.linspace(0, t_max, 1000)
-        
-        # Generate approximate force trajectories
-        # Square Law: forces decrease in a curved fashion, not linearly
+
+        # Use a simplified trajectory generation for equal effectiveness case
         A_t = np.zeros_like(t)
         B_t = np.zeros_like(t)
-        
+
         for i, time in enumerate(t):
             if time >= t_end:
                 if winner == 'A':
@@ -200,20 +245,20 @@ class LanchesterSquare:
             else:
                 # Square Law approximation: faster initial casualties, then slowing
                 progress = time / t_end
-                
+
                 if winner == 'A':
                     # B decreases faster (gets eliminated)
                     B_t[i] = self.B0 * (1 - progress**0.7)  # Curved decrease
                     A_t[i] = np.sqrt(max(0, self.A0**2 - (self.B0**2 - B_t[i]**2)))
                 elif winner == 'B':
                     # A decreases faster (gets eliminated)
-                    A_t[i] = self.A0 * (1 - progress**0.7)  # Curved decrease  
+                    A_t[i] = self.A0 * (1 - progress**0.7)  # Curved decrease
                     B_t[i] = np.sqrt(max(0, self.B0**2 - (self.A0**2 - A_t[i]**2)))
                 else:
                     # Both decrease at same rate
                     A_t[i] = self.A0 * (1 - progress)
                     B_t[i] = self.B0 * (1 - progress)
-                
+
                 A_t[i] = max(0, A_t[i])
                 B_t[i] = max(0, B_t[i])
         
