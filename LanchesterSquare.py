@@ -4,10 +4,19 @@ import matplotlib.pyplot as plt
 class LanchesterSquare:
     """
     Implementation of Lanchester's Square Law for modern combat.
-    
+
     The Square Law assumes ranged combat where each unit can engage multiple enemies.
     Combat effectiveness is proportional to the square of force size.
     """
+
+    # Constants for numerical calculations
+    EFFECTIVENESS_TOLERANCE = 1e-10  # Numerical tolerance for determining if alpha ≈ beta (equal effectiveness). Avoids floating-point comparison issues.
+    TIME_EXTENSION_FACTOR = 1.2      # Extends time arrays 20% beyond battle end for better visualization of final states
+    TIME_MINIMUM_EXTENSION = 0.5     # Minimum time extension for very short battles to ensure readable plots
+    DEFAULT_TIME_POINTS = 1000       # Number of time points for trajectory calculations. Balances smoothness with performance.
+    SIMPLE_TIME_EXTENSION = 1.5      # 50% time extension for simple analytical solution (needs more padding for curved trajectories)
+    SIMPLE_MINIMUM_TIME = 2.0        # Minimum visualization time for simple solution to show force dynamics clearly
+    CURVE_EXPONENT = 0.7             # Exponent for curved force decrease in simple solution. Creates realistic non-linear casualty patterns where initial losses are slower, then accelerate.
     
     def __init__(self, A0, B0, alpha, beta):
         """
@@ -179,9 +188,9 @@ class LanchesterSquare:
 
         # Create time array
         if t_max is None:
-            t_max = max(t_end * 1.2, t_end + 0.5)
+            t_max = max(t_end * self.TIME_EXTENSION_FACTOR, t_end + self.TIME_MINIMUM_EXTENSION)
 
-        t = np.linspace(0, t_max, 1000)
+        t = np.linspace(0, t_max, self.DEFAULT_TIME_POINTS)
 
         # Generate force trajectories using helper method
         A_t, B_t = self.generate_force_trajectories(winner, remaining_strength, t_end, t, invariant)
@@ -217,7 +226,7 @@ class LanchesterSquare:
         initial force sizes, and A_final = sqrt(A₀² - B₀²) if A wins.
         """
         # Calculate the Square Law invariant for equal effectiveness case
-        if abs(self.alpha - self.beta) < 1e-10:  # Approximately equal
+        if abs(self.alpha - self.beta) < self.EFFECTIVENESS_TOLERANCE:  # Approximately equal
             effectiveness = self.alpha  # or self.beta, they're the same
 
             if self.A0**2 > self.B0**2:
@@ -241,9 +250,9 @@ class LanchesterSquare:
 
         # Create time array
         if t_max is None:
-            t_max = max(t_end * 1.5, 2.0)
+            t_max = max(t_end * self.SIMPLE_TIME_EXTENSION, self.SIMPLE_MINIMUM_TIME)
 
-        t = np.linspace(0, t_max, 1000)
+        t = np.linspace(0, t_max, self.DEFAULT_TIME_POINTS)
 
         # Use a simplified trajectory generation for equal effectiveness case
         A_t = np.zeros_like(t)
@@ -266,11 +275,11 @@ class LanchesterSquare:
 
                 if winner == 'A':
                     # B decreases faster (gets eliminated)
-                    B_t[i] = self.B0 * (1 - progress**0.7)  # Curved decrease
+                    B_t[i] = self.B0 * (1 - progress**self.CURVE_EXPONENT)  # Curved decrease
                     A_t[i] = np.sqrt(max(0, self.A0**2 - (self.B0**2 - B_t[i]**2)))
                 elif winner == 'B':
                     # A decreases faster (gets eliminated)
-                    A_t[i] = self.A0 * (1 - progress**0.7)  # Curved decrease
+                    A_t[i] = self.A0 * (1 - progress**self.CURVE_EXPONENT)  # Curved decrease
                     B_t[i] = np.sqrt(max(0, self.B0**2 - (self.A0**2 - A_t[i]**2)))
                 else:
                     # Both decrease at same rate
