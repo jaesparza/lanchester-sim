@@ -47,7 +47,16 @@ class LanchesterSquare:
             remaining_strength = np.sqrt(invariant / self.alpha)
             # Time when B is eliminated
             if self.beta > 0:
-                t_end = (1/np.sqrt(self.alpha * self.beta)) * np.arctanh(np.sqrt(self.beta/self.alpha) * self.B0/np.sqrt(invariant/self.alpha + self.B0**2))
+                # Break down complex arctanh calculation for numerical stability
+                ratio = np.sqrt(self.beta / self.alpha)
+                denominator = np.sqrt(invariant / self.alpha + self.B0**2)
+                arg = ratio * self.B0 / denominator
+
+                # Check for valid arctanh domain [-1, 1]
+                if abs(arg) >= 1.0:
+                    t_end = self.B0 / (self.alpha * self.A0)  # Fallback approximation
+                else:
+                    t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
                 t_end = self.B0 / (self.alpha * self.A0)  # Degenerate case
         elif invariant < 0:
@@ -56,7 +65,16 @@ class LanchesterSquare:
             remaining_strength = np.sqrt(-invariant / self.beta)
             # Time when A is eliminated
             if self.alpha > 0:
-                t_end = (1/np.sqrt(self.alpha * self.beta)) * np.arctanh(np.sqrt(self.alpha/self.beta) * self.A0/np.sqrt(-invariant/self.beta + self.A0**2))
+                # Break down complex arctanh calculation for numerical stability
+                ratio = np.sqrt(self.alpha / self.beta)
+                denominator = np.sqrt(-invariant / self.beta + self.A0**2)
+                arg = ratio * self.A0 / denominator
+
+                # Check for valid arctanh domain [-1, 1]
+                if abs(arg) >= 1.0:
+                    t_end = self.A0 / (self.beta * self.B0)  # Fallback approximation
+                else:
+                    t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
                 t_end = self.A0 / (self.beta * self.B0)  # Degenerate case
         else:
