@@ -97,7 +97,7 @@ class LanchesterSquare:
 
         return t_end
 
-    def generate_force_trajectories(self, winner, remaining_strength, t_end, t):
+    def generate_force_trajectories(self, winner, remaining_strength, t_end, t, invariant):
         """
         Generate force strength trajectories over time.
 
@@ -106,6 +106,7 @@ class LanchesterSquare:
         remaining_strength (float): Final strength of winner
         t_end (float): Battle end time
         t (array): Time array
+        invariant (float): Square Law invariant for proper dynamics
 
         Returns:
         tuple: (A_t, B_t) arrays of force strengths
@@ -125,12 +126,29 @@ class LanchesterSquare:
                     A_t[i] = 0
                     B_t[i] = 0
             else:
-                # Approximate solution using exponential decay
-                decay_factor_A = self.beta * self.B0 * time / (1 + self.beta * self.B0 * time)
-                decay_factor_B = self.alpha * self.A0 * time / (1 + self.alpha * self.A0 * time)
+                # Square Law dynamics: dA/dt = -β*A*B, dB/dt = -α*A*B
+                # Use Square Law approximation based on invariant conservation
+                time_ratio = time / t_end
 
-                A_t[i] = max(0, self.A0 * (1 - decay_factor_A))
-                B_t[i] = max(0, self.B0 * (1 - decay_factor_B))
+                if winner == 'A':
+                    # B decreases faster, maintaining Square Law relationship
+                    B_remaining = self.B0 * (1 - time_ratio**2)  # Quadratic decay for losing force
+                    # Use invariant: α*A² - β*B² = constant
+                    A_squared = (invariant + self.beta * B_remaining**2) / self.alpha
+                    A_t[i] = max(0, np.sqrt(max(0, A_squared)))
+                    B_t[i] = max(0, B_remaining)
+                elif winner == 'B':
+                    # A decreases faster, maintaining Square Law relationship
+                    A_remaining = self.A0 * (1 - time_ratio**2)  # Quadratic decay for losing force
+                    # Use invariant: α*A² - β*B² = constant
+                    B_squared = (self.alpha * A_remaining**2 - invariant) / self.beta
+                    A_t[i] = max(0, A_remaining)
+                    B_t[i] = max(0, np.sqrt(max(0, B_squared)))
+                else:
+                    # Draw case: both decrease at same rate
+                    decay = 1 - time_ratio**2
+                    A_t[i] = max(0, self.A0 * decay)
+                    B_t[i] = max(0, self.B0 * decay)
 
         return A_t, B_t
 
@@ -166,7 +184,7 @@ class LanchesterSquare:
         t = np.linspace(0, t_max, 1000)
 
         # Generate force trajectories using helper method
-        A_t, B_t = self.generate_force_trajectories(winner, remaining_strength, t_end, t)
+        A_t, B_t = self.generate_force_trajectories(winner, remaining_strength, t_end, t, invariant)
         
         # Calculate casualties
         if winner == 'A':
