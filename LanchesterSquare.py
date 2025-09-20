@@ -80,11 +80,11 @@ class LanchesterSquare:
 
                 # Check for valid arctanh domain [-1, 1]
                 if abs(arg) >= 1.0:
-                    t_end = self.B0 / (self.alpha * self.A0)  # Fallback approximation
+                    t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)  # Fallback approximation
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                t_end = self.B0 / (self.alpha * self.A0)  # Degenerate case
+                t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)  # Degenerate case
         elif winner == 'B':
             # Time when A is eliminated
             if self.alpha > 0:
@@ -95,11 +95,11 @@ class LanchesterSquare:
 
                 # Check for valid arctanh domain [-1, 1]
                 if abs(arg) >= 1.0:
-                    t_end = self.A0 / (self.beta * self.B0)  # Fallback approximation
+                    t_end = self.A0 / (np.sqrt(self.beta) * self.B0)  # Fallback approximation
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                t_end = self.A0 / (self.beta * self.B0)  # Degenerate case
+                t_end = self.A0 / (np.sqrt(self.beta) * self.B0)  # Degenerate case
         else:
             # Both eliminated simultaneously - use approximation for mutual annihilation
             t_end = max(self.A0/np.sqrt(self.alpha * self.B0), self.B0/np.sqrt(self.beta * self.A0))
