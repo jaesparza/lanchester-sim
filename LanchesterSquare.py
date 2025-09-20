@@ -62,9 +62,8 @@ class LanchesterSquare:
         else:
             winner = 'Draw'
             remaining_strength = 0
-            # Both eliminated simultaneously
-            t_end = 1/np.sqrt(self.alpha * self.beta) * np.arctanh(1)  # arctanh(1) = infinity, so this is approximate
-            t_end = max(self.A0/np.sqrt(self.alpha * self.B0), self.B0/np.sqrt(self.beta * self.A0))  # Approximate
+            # Both eliminated simultaneously - use approximation for mutual annihilation
+            t_end = max(self.A0/np.sqrt(self.alpha * self.B0), self.B0/np.sqrt(self.beta * self.A0))
         
         # For numerical stability, use a simpler approach for time calculation
         if np.isnan(t_end) or np.isinf(t_end):
