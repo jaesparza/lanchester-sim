@@ -22,7 +22,7 @@ pip install -e .
 ## Quick Start
 
 ```python
-from lanchester_sim import LanchesterLinear, LanchesterSquare, SalvoCombatModel, Ship
+from models import LanchesterLinear, LanchesterSquare, SalvoCombatModel, Ship
 
 # Linear Law (guerrilla warfare)
 battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
