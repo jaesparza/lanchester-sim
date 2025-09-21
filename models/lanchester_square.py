@@ -123,6 +123,13 @@ class LanchesterSquare:
         A_t = np.zeros_like(t)
         B_t = np.zeros_like(t)
 
+        # Handle zero effectiveness edge case
+        if self.alpha == 0 and self.beta == 0:
+            # No combat effectiveness - forces remain constant
+            A_t = np.full_like(t, self.A0)
+            B_t = np.full_like(t, self.B0)
+            return A_t, B_t
+
         for i, time in enumerate(t):
             if time >= t_end:
                 if winner == 'A':
@@ -137,16 +144,16 @@ class LanchesterSquare:
             else:
                 # Square Law dynamics: dA/dt = -β*A*B, dB/dt = -α*A*B
                 # Use Square Law approximation based on invariant conservation
-                time_ratio = time / t_end
+                time_ratio = time / t_end if t_end > 0 else 0
 
-                if winner == 'A':
+                if winner == 'A' and self.alpha > 0:
                     # B decreases faster, maintaining Square Law relationship
                     B_remaining = self.B0 * (1 - time_ratio**2)  # Quadratic decay for losing force
                     # Use invariant: α*A² - β*B² = constant
                     A_squared = (invariant + self.beta * B_remaining**2) / self.alpha
                     A_t[i] = max(0, np.sqrt(max(0, A_squared)))
                     B_t[i] = max(0, B_remaining)
-                elif winner == 'B':
+                elif winner == 'B' and self.beta > 0:
                     # A decreases faster, maintaining Square Law relationship
                     A_remaining = self.A0 * (1 - time_ratio**2)  # Quadratic decay for losing force
                     # Use invariant: α*A² - β*B² = constant
@@ -154,10 +161,15 @@ class LanchesterSquare:
                     A_t[i] = max(0, A_remaining)
                     B_t[i] = max(0, np.sqrt(max(0, B_squared)))
                 else:
-                    # Draw case: both decrease at same rate
-                    decay = 1 - time_ratio**2
-                    A_t[i] = max(0, self.A0 * decay)
-                    B_t[i] = max(0, self.B0 * decay)
+                    # Draw case or degenerate case: both decrease at same rate
+                    if t_end > 0:
+                        decay = 1 - time_ratio**2
+                        A_t[i] = max(0, self.A0 * decay)
+                        B_t[i] = max(0, self.B0 * decay)
+                    else:
+                        # No meaningful combat
+                        A_t[i] = self.A0
+                        B_t[i] = self.B0
 
         return A_t, B_t
 
