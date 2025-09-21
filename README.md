@@ -41,12 +41,12 @@ result = simulation.run_simulation()
 ```
 
 ## Examples
-
 Run the examples file to see all models in action:
 
 ```bash
 python examples.py
 ```
+![Combat Models Dashboard](images/example.png)
 
 ## Key Features
 
