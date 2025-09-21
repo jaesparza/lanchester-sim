@@ -6,7 +6,8 @@ class LanchesterLinear:
     Implementation of Lanchester's Linear Law for ancient-style combat.
 
     The Linear Law assumes sequential combat where forces engage one-on-one.
-    Combat effectiveness is proportional to force size.
+    Forces decrease at constant rates: A(t) = A₀ - βt, B(t) = B₀ - αt
+    Winner determined by effectiveness coefficients α, β and initial forces.
     """
 
     # Constants for numerical calculations
@@ -40,49 +41,29 @@ class LanchesterLinear:
         """
         Calculate battle outcome based on Linear Law dynamics.
 
-        Linear Law: dA/dt = -β·B, dB/dt = -α·A
-        Winner determined by who can eliminate opponent first given effectiveness rates.
+        Linear Law: A(t) = A₀ - βt, B(t) = B₀ - αt (constant attrition rates)
+        Winner determined by who reaches zero first.
 
         Returns:
         tuple: (winner, remaining_strength, t_end)
         """
-        # Handle degenerate cases
-        if self.alpha == 0 and self.beta == 0:
-            return 'Draw', 0, float('inf')
-        elif self.alpha == 0:
-            return 'A', self.A0, float('inf')  # A can't be damaged
-        elif self.beta == 0:
-            return 'B', self.B0, float('inf')  # B can't be damaged
+        # Calculate when each force would be eliminated
+        t_A_eliminated = self.A0 / self.beta if self.beta > 0 else np.inf
+        t_B_eliminated = self.B0 / self.alpha if self.alpha > 0 else np.inf
 
-        # Calculate time for each force to eliminate the other if unopposed
-        # Time for A to eliminate B: B₀ / α (A attacks B at rate α)
-        # Time for B to eliminate A: A₀ / β (B attacks A at rate β)
-        time_A_eliminates_B = self.B0 / self.alpha
-        time_B_eliminates_A = self.A0 / self.beta
+        # Battle ends when first force is eliminated
+        t_end = min(t_A_eliminated, t_B_eliminated)
 
-        if time_A_eliminates_B < time_B_eliminates_A:
-            # A eliminates B first
-            winner = 'A'
-            t_end = time_A_eliminates_B
-            # Calculate A's remaining strength
-            # Since A eliminates B in time t_end, and A started with advantage,
-            # A must survive. Use ratio-based approximation.
-            survival_ratio = 1 - (t_end / time_B_eliminates_A)
-            remaining_strength = max(1, self.A0 * survival_ratio)  # At least 1 survivor
-        elif time_B_eliminates_A < time_A_eliminates_B:
-            # B eliminates A first
+        # Determine winner
+        if t_A_eliminated < t_B_eliminated:
             winner = 'B'
-            t_end = time_B_eliminates_A
-            # Calculate B's remaining strength
-            # Since B eliminates A in time t_end, and B started with advantage,
-            # B must survive. Use ratio-based approximation.
-            survival_ratio = 1 - (t_end / time_A_eliminates_B)
-            remaining_strength = max(1, self.B0 * survival_ratio)  # At least 1 survivor
+            remaining_strength = self.B0 - self.alpha * t_end
+        elif t_B_eliminated < t_A_eliminated:
+            winner = 'A'
+            remaining_strength = self.A0 - self.beta * t_end
         else:
-            # Simultaneous elimination
             winner = 'Draw'
             remaining_strength = 0
-            t_end = time_A_eliminates_B  # Same as time_B_eliminates_A
 
         return winner, remaining_strength, t_end
 
@@ -90,8 +71,8 @@ class LanchesterLinear:
         """
         Generate force strength trajectories over time using Linear Law.
 
-        Linear Law: dA/dt = -β·B(t), dB/dt = -α·A(t)
-        Forces decrease based on mutual attrition with effectiveness coefficients.
+        Linear Law: A(t) = A₀ - βt, B(t) = B₀ - αt (constant attrition rates)
+        Forces decrease linearly until one is eliminated.
 
         Parameters:
         t (array): Time array
@@ -99,56 +80,9 @@ class LanchesterLinear:
         Returns:
         tuple: (A_t, B_t) arrays of force strengths
         """
-        # Handle edge cases
-        if self.alpha == 0 and self.beta == 0:
-            return np.full_like(t, self.A0), np.full_like(t, self.B0)
-
-        # Get battle parameters
-        winner, remaining_strength, t_end = self.calculate_battle_outcome()
-
-        # Initialize arrays
-        A_t = np.zeros_like(t)
-        B_t = np.zeros_like(t)
-
-        for i, time_val in enumerate(t):
-            if time_val >= t_end:
-                # Battle has ended
-                if winner == 'A':
-                    A_t[i] = remaining_strength
-                    B_t[i] = 0
-                elif winner == 'B':
-                    A_t[i] = 0
-                    B_t[i] = remaining_strength
-                else:
-                    A_t[i] = 0
-                    B_t[i] = 0
-            else:
-                # During battle - forces decrease based on differential equations
-                # Simplified linear approximation of the differential system
-
-                if winner == 'A':
-                    # B is eliminated at t_end, A survives
-                    progress = time_val / t_end
-                    B_t[i] = self.B0 * (1 - progress)  # B decreases linearly to zero
-                    # A decreases based on being attacked by remaining B forces
-                    A_losses = self.beta * self.B0 * progress / 2  # Approximate integral
-                    A_t[i] = max(0, self.A0 - A_losses)
-                elif winner == 'B':
-                    # A is eliminated at t_end, B survives
-                    progress = time_val / t_end
-                    A_t[i] = self.A0 * (1 - progress)  # A decreases linearly to zero
-                    # B decreases based on being attacked by remaining A forces
-                    B_losses = self.alpha * self.A0 * progress / 2  # Approximate integral
-                    B_t[i] = max(0, self.B0 - B_losses)
-                else:
-                    # Draw: both forces decrease at rates determined by effectiveness
-                    progress = time_val / t_end
-                    A_t[i] = self.A0 * (1 - progress)
-                    B_t[i] = self.B0 * (1 - progress)
-
-        # Ensure non-negative values
-        A_t = np.maximum(0, A_t)
-        B_t = np.maximum(0, B_t)
+        # Calculate force strengths over time using Linear Law
+        A_t = np.maximum(0, self.A0 - self.beta * t)
+        B_t = np.maximum(0, self.B0 - self.alpha * t)
 
         return A_t, B_t
 
@@ -193,7 +127,7 @@ class LanchesterLinear:
             'remaining_strength': remaining_strength,
             'A_casualties': A_casualties,
             'B_casualties': B_casualties,
-            'effectiveness_ratio': self.alpha / self.beta if self.beta > 0 else float('inf')  # Linear Law: effectiveness matters
+            'linear_advantage': self.A0 - self.B0  # Linear Law insight: initial size advantage
         }
 
     def simple_analytical_solution(self, t_max=None):

@@ -17,7 +17,7 @@ def linear_example():
     print("LANCHESTER LINEAR LAW EXAMPLE")
     print("="*50)
 
-    battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+    battle = LanchesterLinear(A0=100, B0=80, alpha=0.01, beta=0.012)
     solution = battle.simple_analytical_solution()
 
     print(f"Winner: {solution['winner']}")
@@ -83,7 +83,7 @@ def comparison_example():
     A0, B0 = 100, 80
 
     # Linear Law
-    linear = LanchesterLinear(A0, B0, alpha=0.5, beta=0.5)
+    linear = LanchesterLinear(A0, B0, alpha=0.01, beta=0.01)
     linear_result = linear.simple_analytical_solution()
 
     # Square Law
