@@ -99,10 +99,18 @@ class LanchesterSquare:
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                t_end = self.A0 / (np.sqrt(self.beta) * self.B0)  # Degenerate case
+                # Handle degenerate case with zero beta
+                if self.beta > 0 and self.B0 > 0:
+                    t_end = self.A0 / (np.sqrt(self.beta) * self.B0)
+                else:
+                    t_end = 1.0  # Fallback for degenerate case
         else:
             # Both eliminated simultaneously - use approximation for mutual annihilation
-            t_end = max(self.A0/np.sqrt(self.alpha * self.B0), self.B0/np.sqrt(self.beta * self.A0))
+            # Handle zero effectiveness cases
+            if self.alpha > 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
+                t_end = max(self.A0/np.sqrt(self.alpha * self.B0), self.B0/np.sqrt(self.beta * self.A0))
+            else:
+                t_end = 1.0  # Fallback for degenerate case
 
         return t_end
 
@@ -192,11 +200,21 @@ class LanchesterSquare:
         if np.isnan(t_end) or np.isinf(t_end):
             # Use approximate method: integrate until one force is nearly eliminated
             if winner == 'A':
-                t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)
+                if self.alpha > 0 and self.A0 > 0:
+                    t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)
+                else:
+                    t_end = 1.0  # Fallback for degenerate case
             elif winner == 'B':
-                t_end = self.A0 / (np.sqrt(self.beta) * self.B0)
+                if self.beta > 0 and self.B0 > 0:
+                    t_end = self.A0 / (np.sqrt(self.beta) * self.B0)
+                else:
+                    t_end = 1.0  # Fallback for degenerate case
             else:
-                t_end = min(self.A0 / (np.sqrt(self.beta) * self.B0), self.B0 / (np.sqrt(self.alpha) * self.A0))
+                # Handle zero cases properly
+                if self.alpha > 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
+                    t_end = min(self.A0 / (np.sqrt(self.beta) * self.B0), self.B0 / (np.sqrt(self.alpha) * self.A0))
+                else:
+                    t_end = 1.0  # Fallback for degenerate case
 
         # Create time array
         if t_max is None:
