@@ -7,8 +7,8 @@ Simple implementations of:
 - Salvo Combat Model
 """
 
-from .linear import LanchesterLinear
-from .square import LanchesterSquare
+from .lanchester_linear import LanchesterLinear
+from .lanchester_square import LanchesterSquare
 from .salvo import SalvoCombatModel, Ship
 
 __version__ = "0.1.0"
