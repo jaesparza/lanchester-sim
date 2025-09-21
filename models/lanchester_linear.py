@@ -16,14 +16,14 @@ class LanchesterLinear:
     DEFAULT_TIME_POINTS = 1000       # Number of time points for trajectory calculations. Balances smoothness with performance.
     SIMPLE_TIME_EXTENSION = 1.5      # 50% time extension for simple analytical solution (needs more padding for linear trajectories)
     SIMPLE_MINIMUM_TIME = 2.0        # Minimum visualization time for simple solution to show force dynamics clearly
-    
+
     def __init__(self, A0, B0, alpha, beta):
         """
         Initialize the combat scenario.
-        
+
         Parameters:
         A0 (float): Initial strength of force A
-        B0 (float): Initial strength of force B  
+        B0 (float): Initial strength of force B
         alpha (float): Effectiveness coefficient of A against B
         beta (float): Effectiveness coefficient of B against A
         """
@@ -40,40 +40,38 @@ class LanchesterLinear:
         """
         Calculate battle outcome based on Linear Law dynamics.
 
-        Linear Law: dA/dt = -β·B, dB/dt = -α·A
-        Analytical solution: A(t) - B(t) = A₀ - B₀ (linear advantage is preserved)
+        Linear Law: Winner is determined by initial force size advantage.
+        The linear advantage A₀ - B₀ is preserved throughout combat.
 
         Returns:
         tuple: (winner, remaining_strength, t_end)
         """
-        # Linear Law invariant: A(t) - B(t) = A₀ - B₀
         linear_advantage = self.A0 - self.B0
 
         if linear_advantage > 0:
             winner = 'A'
             remaining_strength = linear_advantage
-            # Battle ends when B is eliminated: B(t_end) = 0
-            # From invariant: A(t_end) = linear_advantage
-            # Time calculation using proper Linear Law dynamics
-            if self.beta > 0:
-                t_end = (1 / (self.alpha + self.beta)) * np.log((self.A0 + self.B0) / self.A0)
-            else:
-                t_end = self.B0 / (self.alpha * self.A0)  # Degenerate case
         elif linear_advantage < 0:
             winner = 'B'
             remaining_strength = -linear_advantage
-            if self.alpha > 0:
-                t_end = (1 / (self.alpha + self.beta)) * np.log((self.A0 + self.B0) / self.B0)
-            else:
-                t_end = self.A0 / (self.beta * self.B0)  # Degenerate case
         else:
             winner = 'Draw'
             remaining_strength = 0
-            # Both forces eliminated simultaneously
-            if self.alpha > 0 and self.beta > 0:
-                t_end = (1 / (self.alpha + self.beta)) * np.log(2)
+
+        # Calculate battle duration based on when losing force reaches zero
+        if self.alpha > 0 and self.beta > 0:
+            if winner == 'A':
+                # B reaches zero first
+                t_end = self.B0 / (self.alpha * (self.A0 + self.B0) / 2)
+            elif winner == 'B':
+                # A reaches zero first
+                t_end = self.A0 / (self.beta * (self.A0 + self.B0) / 2)
             else:
-                t_end = 1.0  # Fallback for degenerate case
+                # Both reach zero simultaneously
+                t_end = self.A0 / (self.beta * (self.A0 + self.B0) / 2)
+        else:
+            # Degenerate cases
+            t_end = 1.0
 
         return winner, remaining_strength, t_end
 
@@ -81,9 +79,7 @@ class LanchesterLinear:
         """
         Generate force strength trajectories over time using Linear Law.
 
-        Linear Law: dA/dt = -β·B, dB/dt = -α·A
-        Analytical solution: A(t) = (A₀+B₀)/2 + (A₀-B₀)/2 * exp(-(α+β)t)
-                           B(t) = (A₀+B₀)/2 - (A₀-B₀)/2 * exp(-(α+β)t)
+        Linear Law: Forces decrease linearly but preserve advantage A(t) - B(t) = A₀ - B₀
 
         Parameters:
         t (array): Time array
@@ -95,34 +91,54 @@ class LanchesterLinear:
         if self.alpha == 0 and self.beta == 0:
             return np.full_like(t, self.A0), np.full_like(t, self.B0)
 
-        # Linear Law analytical solution
-        sum_forces = self.A0 + self.B0
-        diff_forces = self.A0 - self.B0
-        decay_rate = self.alpha + self.beta
+        # Get battle parameters
+        winner, remaining_strength, t_end = self.calculate_battle_outcome()
+        linear_advantage = self.A0 - self.B0
 
-        if decay_rate > 0:
-            exp_term = np.exp(-decay_rate * t)
-            A_t = (sum_forces + diff_forces * exp_term) / 2
-            B_t = (sum_forces - diff_forces * exp_term) / 2
-        else:
-            # Degenerate case: forces remain constant
-            A_t = np.full_like(t, self.A0)
-            B_t = np.full_like(t, self.B0)
+        # Initialize arrays
+        A_t = np.zeros_like(t)
+        B_t = np.zeros_like(t)
 
-        # Ensure non-negative values (forces can't go below zero)
+        for i, time_val in enumerate(t):
+            if time_val >= t_end:
+                # Battle has ended
+                if winner == 'A':
+                    A_t[i] = remaining_strength
+                    B_t[i] = 0
+                elif winner == 'B':
+                    A_t[i] = 0
+                    B_t[i] = remaining_strength
+                else:
+                    A_t[i] = 0
+                    B_t[i] = 0
+            else:
+                # During battle - forces decrease but preserve linear advantage
+                progress = time_val / t_end if t_end > 0 else 0
+
+                if winner == 'A':
+                    # B gets eliminated first, so it decreases faster
+                    B_t[i] = self.B0 * (1 - progress)
+                    A_t[i] = B_t[i] + linear_advantage
+                elif winner == 'B':
+                    # A gets eliminated first, so it decreases faster
+                    A_t[i] = self.A0 * (1 - progress)
+                    B_t[i] = A_t[i] - linear_advantage
+                else:
+                    # Draw: both decrease at same rate
+                    A_t[i] = self.A0 * (1 - progress)
+                    B_t[i] = self.B0 * (1 - progress)
+
+        # Ensure non-negative values
         A_t = np.maximum(0, A_t)
         B_t = np.maximum(0, B_t)
 
         return A_t, B_t
-    
+
     def analytical_solution(self, t_max=None):
         """
         Analytical solution for the Linear Law.
 
-        Uses the Linear Law relationship: dA/dt = -β·B, dB/dt = -α·A
-
-        The Linear Law models combat where casualties depend on enemy force size.
-        Key insight: A(t) - B(t) = A₀ - B₀ (linear advantage preserved)
+        Uses the Linear Law principle: A(t) - B(t) = A₀ - B₀ (linear advantage preserved)
 
         Returns:
         dict: Contains time arrays, force strengths, battle end time, and winner
@@ -166,38 +182,11 @@ class LanchesterLinear:
         """
         Simplified analytical solution using the key Linear Law insight.
 
-        For equal effectiveness (alpha = beta), the winner is determined by
-        initial force sizes, and A_final = A₀ - B₀ if A wins (simple difference).
+        Returns the same result as analytical_solution since the Linear Law
+        is simpler than the Square Law.
         """
-        # Calculate battle outcome using helper method
-        winner, remaining_strength, t_end = self.calculate_battle_outcome()
+        return self.analytical_solution(t_max)
 
-        # The calculation is already correct in the helper method using proper Linear Law
-        # No need for special case handling - the general solution works for all cases
-
-        # Create time array
-        if t_max is None:
-            t_max = max(t_end * self.SIMPLE_TIME_EXTENSION, self.SIMPLE_MINIMUM_TIME)
-
-        t = np.linspace(0, t_max, self.DEFAULT_TIME_POINTS)
-
-        # Generate force trajectories using helper method
-        A_t, B_t = self.generate_force_trajectories(t)
-
-        return {
-            'time': t,
-            'A': A_t,
-            'B': B_t,
-            'battle_end_time': t_end,
-            'winner': winner,
-            'remaining_strength': remaining_strength,
-            'A_casualties': self.A0 - (remaining_strength if winner == 'A' else 0),
-            'B_casualties': self.B0 - (remaining_strength if winner == 'B' else 0),
-            'linear_advantage': self.A0 - self.B0
-        }
-    
-
-    
     def plot_battle(self, solution=None, title="Lanchester Linear Law", ax=None):
         """
         Plot the battle dynamics over time.
@@ -239,71 +228,3 @@ class LanchesterLinear:
         if ax is None:
             plt.tight_layout()
             plt.show()
-    
-    @classmethod
-    def plot_multiple_battles(cls, battles, solutions=None, titles=None):
-        """
-        Plot multiple battle scenarios in parallel subplots.
-        
-        Parameters:
-        battles (list): List of LanchesterLinear instances
-        solutions (list): List of solution dictionaries (optional)
-        titles (list): List of titles for each subplot (optional)
-        """
-        n_battles = len(battles)
-        _, axes = plt.subplots(1, n_battles, figsize=(6*n_battles, 6))
-        
-        # Handle case where there's only one battle
-        if n_battles == 1:
-            axes = [axes]
-        
-        for i, battle in enumerate(battles):
-            solution = solutions[i] if solutions else None
-            title = titles[i] if titles else f"Battle {i+1}"
-            
-            battle.plot_battle(solution=solution, title=title, ax=axes[i])
-        
-        plt.tight_layout()
-        plt.show()
-
-
-# Example usage and demonstration
-if __name__ == "__main__":
-    # Example 1: Equal effectiveness, size advantage
-    print("Example 1: Equal Effectiveness - Size Matters")
-    battle1 = LanchesterLinear(A0=100, B0=60, alpha=0.5, beta=0.5)
-    solution1 = battle1.simple_analytical_solution()
-
-    print(f"Battle ends at t = {solution1['battle_end_time']:.2f}")
-    print(f"Winner: {solution1['winner']} with {solution1['remaining_strength']:.1f} units remaining")
-    print(f"Force A casualties: {solution1['A_casualties']:.1f}")
-    print(f"Force B casualties: {solution1['B_casualties']:.1f}")
-    print(f"Linear Law prediction: {battle1.A0} - {battle1.B0} = {battle1.A0 - battle1.B0:.1f}")
-    print()
-
-    # Example 2: Effectiveness vs. numbers
-    print("Example 2: Superior Effectiveness vs. Numbers")
-    battle2 = LanchesterLinear(A0=80, B0=120, alpha=0.8, beta=0.4)
-    solution2 = battle2.analytical_solution()
-
-    print(f"Battle ends at t = {solution2['battle_end_time']:.2f}")
-    print(f"Winner: {solution2['winner']} with {solution2['remaining_strength']:.1f} units remaining")
-    print(f"A's effectiveness: α = {battle2.alpha}")
-    print(f"B's effectiveness: β = {battle2.beta}")
-    print(f"Linear advantage: {solution2['linear_advantage']:.0f} ({'A favored' if solution2['linear_advantage'] > 0 else 'B favored' if solution2['linear_advantage'] < 0 else 'Equal'})")
-    print()
-
-    # Plot both examples using the new method
-    LanchesterLinear.plot_multiple_battles(
-        battles=[battle1, battle2],
-        solutions=[solution1, solution2],
-        titles=["Example 1: Equal Effectiveness", "Example 2: Superior Effectiveness"]
-    )
-
-    # Comparison with Square Law
-    print("\nComparison: Linear Law vs Square Law")
-    print("="*50)
-    print(f"Scenario: A0={battle1.A0}, B0={battle1.B0}, equal effectiveness")
-    print(f"Linear Law winner remainder: {solution1['remaining_strength']:.1f} units")
-    print(f"Square Law winner remainder: {np.sqrt(battle1.A0**2 - battle1.B0**2):.1f} units")
-    print(f"Square Law advantage: {np.sqrt(battle1.A0**2 - battle1.B0**2) - solution1['remaining_strength']:.1f} more survivors")
