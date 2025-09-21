@@ -1,9 +1,70 @@
-# Lanchester simulations
+# Lanchester Combat Simulations
 
-Combat simulations using the models:
-* Lanchester linear law
-* Lanchester square law
-* Salvo Combat model
+Simple Python implementations of classic combat models:
+- **Lanchester Linear Law** - for guerrilla warfare and hand-to-hand combat
+- **Lanchester Square Law** - for modern ranged combat with concentration effects
+- **Salvo Combat Model** - for discrete missile/naval combat with defensive systems
+
+## Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/jaesparza/lanchester-sim.git
+cd lanchester-sim
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install as package (optional)
+pip install -e .
+```
+
+## Quick Start
+
+```python
+from lanchester_sim import LanchesterLinear, LanchesterSquare, SalvoCombatModel, Ship
+
+# Linear Law (guerrilla warfare)
+battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+result = battle.simple_analytical_solution()
+print(f"Winner: {result['winner']} with {result['remaining_strength']:.1f} survivors")
+
+# Square Law (modern combat)
+battle = LanchesterSquare(A0=100, B0=80, alpha=0.01, beta=0.01)
+result = battle.simple_analytical_solution()
+print(f"Winner: {result['winner']} with {result['remaining_strength']:.1f} survivors")
+
+# Salvo Model (naval/missile combat)
+force_a = [Ship("Destroyer", offensive_power=10, defensive_power=0.3, staying_power=5)]
+force_b = [Ship("Frigate", offensive_power=8, defensive_power=0.4, staying_power=3)]
+simulation = SalvoCombatModel(force_a, force_b, random_seed=42)
+result = simulation.run_simulation()
+```
+
+## Examples
+
+Run the examples file to see all models in action:
+
+```bash
+python examples.py
+```
+
+## Key Features
+
+- **Well-documented constants** for easy parameter tuning
+- **Helper methods** eliminating code duplication
+- **Monte Carlo analysis** for statistical outcomes
+- **Simple and full simulation modes**
+- **Plotting capabilities** with model-specific insights
+- **Comparative analysis** between different models
+
+## Model Comparison
+
+| Model | Best For | Key Insight |
+|-------|----------|-------------|
+| Linear Law | Hand-to-hand, guerrilla warfare | Winner = A₀ - B₀ |
+| Square Law | Modern ranged combat | Winner = √(A₀² - B₀²) |
+| Salvo Model | Naval/missile combat | Discrete rounds, defensive systems |
 
 ## Resources
 
