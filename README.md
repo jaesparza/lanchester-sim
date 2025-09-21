@@ -76,3 +76,6 @@ python examples.py
 * Helmbold, Robert L. (1961b). "Lanchester's Equations, Historical Battles, and War Games". Proceedings of the Eighth Military Operations Research Society Symposium, 18–20 October 1961.
 * Alan Washburn, 2000. Lanchester Systems [link](https://faculty.nps.edu/awashburn/Files/Notes/Lanchester.pdf)
 * Combat science: the emergence of Operational Research in World War II Erik P. Rau [rau2005]
+
+* The influence of the numerical strength of engaged forces on their casualties. ByM. Osipov Originally Published in the Tzarist Russian Journal MILITARY COLLECTION June-October 1915
+Translation of September 1991 by Dr. Robert L. Heimbold and Dr. Allan S. Rehm OFFICE, SPECIAL ASSISTANT FOR MODEL VALIDATION [link](https://web.archive.org/web/20211104093037/https://apps.dtic.mil/dtic/tr/fulltext/u2/a241534.pdf)
