@@ -13,23 +13,43 @@ class Ship:
     staying_power: int      # Number of hits required to sink the ship
     current_hits: int = 0   # Current damage taken
     is_active: bool = True  # Whether ship can still fight
+
+    def __post_init__(self):
+        """Validate ship parameters after initialization"""
+        if self.offensive_power < 0:
+            raise ValueError("Offensive power must be non-negative")
+        if not (0 <= self.defensive_power <= 1.0):
+            raise ValueError("Defensive power must be between 0 and 1")
+        if self.staying_power <= 0:
+            raise ValueError("Staying power must be positive")
+
+    @property
+    def defensive_probability(self) -> float:
+        """Alias for defensive_power for backward compatibility"""
+        return self.defensive_power
+
+    @property
+    def current_health(self) -> int:
+        """Get current health (remaining hits before destruction)"""
+        return max(0, self.staying_power - self.current_hits)
     
     def is_operational(self) -> bool:
         """Check if ship is still operational"""
         return self.current_hits < self.staying_power and self.is_active
+
     
-    def take_damage(self, hits: int) -> int:
-        """Apply damage to ship and return actual hits taken"""
+    def take_damage(self, damage: int) -> int:
+        """Apply damage to ship and return actual damage taken"""
         if not self.is_operational():
             return 0
-        
-        actual_hits = min(hits, self.staying_power - self.current_hits)
-        self.current_hits += actual_hits
-        
+
+        actual_damage = min(damage, self.staying_power - self.current_hits)
+        self.current_hits += actual_damage
+
         if self.current_hits >= self.staying_power:
             self.is_active = False
-            
-        return actual_hits
+
+        return actual_damage
     
     def get_health_percentage(self) -> float:
         """Get remaining health as percentage"""
@@ -44,7 +64,7 @@ class SalvoCombatModel:
     MONTE_CARLO_ITERATIONS = 100       # Default Monte Carlo simulation count for statistical analysis
     HEALTH_PRECISION = 1               # Decimal places for health percentage display
     DEFENSIVE_EFFECTIVENESS_FACTOR = 1.0  # Multiplier for defensive calculations (allows tuning)
-    FORCE_EFFECTIVENESS_TOLERANCE = 1e-10  # Tolerance for comparing force effectiveness
+    FORCE_EFFECTIVENESS_TOLERANCE = 0.01   # Tolerance for comparing force effectiveness (1% difference)
     HIT_DISTRIBUTION_RANDOMNESS = 0.2   # Factor for randomness in hit distribution (0-1)
     
     def __init__(self, force_a: List[Ship], force_b: List[Ship], random_seed: Optional[int] = None):
@@ -351,12 +371,13 @@ class SalvoCombatModel:
         a_operational, b_operational = self.calculate_operational_forces()
         return len(a_operational) > 0 and len(b_operational) > 0
     
-    def run_simulation(self, max_rounds: int = None) -> str:
+    def run_simulation(self, max_rounds: int = None, quiet: bool = False) -> str:
         """
         Run the complete simulation with enhanced battle outcome analysis.
 
         Parameters:
         max_rounds (int): Maximum rounds to simulate (uses DEFAULT_MAX_ROUNDS if None)
+        quiet (bool): If True, suppress output and run silently
 
         Returns:
         str: Battle outcome description
@@ -365,53 +386,58 @@ class SalvoCombatModel:
             max_rounds = self.DEFAULT_MAX_ROUNDS
 
         # Display initial force composition and effectiveness
-        print(f"=== SALVO COMBAT MODEL SIMULATION ===\n")
-        print("Initial Forces:")
-        print("Force A:")
-        for ship in self.force_a:
-            print(f"  - {ship.name}: OP={ship.offensive_power}, DP={ship.defensive_power:.2f}, SP={ship.staying_power}")
+        if not quiet:
+            print(f"=== SALVO COMBAT MODEL SIMULATION ===\n")
+            print("Initial Forces:")
+            print("Force A:")
+            for ship in self.force_a:
+                print(f"  - {ship.name}: OP={ship.offensive_power}, DP={ship.defensive_power:.2f}, SP={ship.staying_power}")
 
-        print("\nForce B:")
-        for ship in self.force_b:
-            print(f"  - {ship.name}: OP={ship.offensive_power}, DP={ship.defensive_power:.2f}, SP={ship.staying_power}")
+            print("\nForce B:")
+            for ship in self.force_b:
+                print(f"  - {ship.name}: OP={ship.offensive_power}, DP={ship.defensive_power:.2f}, SP={ship.staying_power}")
 
         # Display initial effectiveness metrics
         initial_stats = self.get_battle_statistics()
-        print(f"\nInitial Force Effectiveness:")
-        print(f"Force A: {initial_stats['total_a_offensive']:.1f} offensive power")
-        print(f"Force B: {initial_stats['total_b_offensive']:.1f} offensive power")
-        print(f"Offensive Ratio (A/B): {initial_stats['offensive_ratio']:.2f}")
-        print("\n" + "="*50)
+        if not quiet:
+            print(f"\nInitial Force Effectiveness:")
+            print(f"Force A: {initial_stats['total_a_offensive']:.1f} offensive power")
+            print(f"Force B: {initial_stats['total_b_offensive']:.1f} offensive power")
+            print(f"Offensive Ratio (A/B): {initial_stats['offensive_ratio']:.2f}")
+            print("\n" + "="*50)
 
         # Execute battle rounds
         while self.execute_round() and self.round_number < max_rounds:
             # Print round summary
-            round_log = self.battle_log[-1]
-            print(f"\nRound {round_log['round']}:")
-            for event in round_log['events']:
-                print(f"  {event}")
+            if not quiet:
+                round_log = self.battle_log[-1]
+                print(f"\nRound {round_log['round']}:")
+                for event in round_log['events']:
+                    print(f"  {event}")
 
         # Get comprehensive battle statistics using helper method
         final_stats = self.get_battle_statistics()
         result = final_stats['outcome']
 
-        print("\n" + "="*50)
-        print("BATTLE RESULT:")
-        print(f"Winner: {result}")
-        print(f"Rounds: {final_stats['rounds']}")
-        print(f"Force A survivors: {final_stats['force_a_survivors']}")
-        print(f"Force B survivors: {final_stats['force_b_survivors']}")
+        if not quiet:
+            print("\n" + "="*50)
+            print("BATTLE RESULT:")
+            print(f"Winner: {result}")
+            print(f"Rounds: {final_stats['rounds']}")
+            print(f"Force A survivors: {final_stats['force_a_survivors']}")
+            print(f"Force B survivors: {final_stats['force_b_survivors']}")
 
         # Display surviving ships with enhanced information
-        if final_stats['surviving_ships_a']:
-            print("Force A surviving ships:")
-            for ship in final_stats['surviving_ships_a']:
-                print(f"  - {ship.name}: {ship.get_health_percentage():.1f}% health")
+        if not quiet:
+            if final_stats['surviving_ships_a']:
+                print("Force A surviving ships:")
+                for ship in final_stats['surviving_ships_a']:
+                    print(f"  - {ship.name}: {ship.get_health_percentage():.1f}% health")
 
-        if final_stats['surviving_ships_b']:
-            print("Force B surviving ships:")
-            for ship in final_stats['surviving_ships_b']:
-                print(f"  - {ship.name}: {ship.get_health_percentage():.1f}% health")
+            if final_stats['surviving_ships_b']:
+                print("Force B surviving ships:")
+                for ship in final_stats['surviving_ships_b']:
+                    print(f"  - {ship.name}: {ship.get_health_percentage():.1f}% health")
 
         return result
     
