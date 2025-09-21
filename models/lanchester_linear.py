@@ -228,3 +228,41 @@ class LanchesterLinear:
         if ax is None:
             plt.tight_layout()
             plt.show()
+
+
+if __name__ == "__main__":
+    # Example 1: Force A has numerical advantage
+    print("Example 1: Numerical Advantage - Force A Superior")
+    battle1 = LanchesterLinear(A0=100, B0=60, alpha=0.01, beta=0.01)
+    solution1 = battle1.simple_analytical_solution()
+
+    print(f"Battle ends at t = {solution1['battle_end_time']:.2f}")
+    print(f"Winner: {solution1['winner']} with {solution1['remaining_strength']:.1f} units remaining")
+    print(f"Force A casualties: {solution1['A_casualties']:.1f}")
+    print(f"Force B casualties: {solution1['B_casualties']:.1f}")
+    print(f"Linear Law advantage: A₀ - B₀ = {battle1.A0} - {battle1.B0} = {battle1.A0 - battle1.B0}")
+    print()
+
+    # Example 2: Effectiveness vs. numbers
+    print("Example 2: Superior Effectiveness vs. Numbers")
+    battle2 = LanchesterLinear(A0=80, B0=120, alpha=0.02, beta=0.01)
+    solution2 = battle2.analytical_solution()
+
+    print(f"Battle ends at t = {solution2['battle_end_time']:.2f}")
+    print(f"Winner: {solution2['winner']} with {solution2['remaining_strength']:.1f} units remaining")
+    print(f"Linear Law advantage: A₀ - B₀ = {battle2.A0} - {battle2.B0} = {battle2.A0 - battle2.B0}")
+    print(f"A's effectiveness: α = {battle2.alpha}")
+    print(f"B's effectiveness: β = {battle2.beta}")
+    print()
+
+    # Plot both examples
+    plt.figure(figsize=(15, 5))
+
+    plt.subplot(1, 2, 1)
+    battle1.plot_battle(solution=solution1, title="Example 1: Numerical Advantage", ax=plt.gca())
+
+    plt.subplot(1, 2, 2)
+    battle2.plot_battle(solution=solution2, title="Example 2: Superior Effectiveness", ax=plt.gca())
+
+    plt.tight_layout()
+    plt.show()
