@@ -8,6 +8,7 @@ Run this file directly to see all models in action:
 
 from models import LanchesterLinear, LanchesterSquare, SalvoCombatModel, Ship
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def linear_example():
@@ -25,6 +26,8 @@ def linear_example():
     print(f"Linear Law insight: {battle.A0} - {battle.B0} = {battle.A0 - battle.B0}")
     print()
 
+    return battle, solution
+
 
 def square_example():
     """Example using Lanchester Square Law"""
@@ -40,6 +43,8 @@ def square_example():
     print(f"Survivors: {solution['remaining_strength']:.1f}")
     print(f"Square Law insight: sqrt({battle.A0}² - {battle.B0}²) = {np.sqrt(battle.A0**2 - battle.B0**2):.1f}")
     print()
+
+    return battle, solution
 
 
 def salvo_example():
@@ -64,6 +69,8 @@ def salvo_example():
 
     print(f"Result: {result}")
     print()
+
+    return simulation
 
 
 def comparison_example():
@@ -94,9 +101,82 @@ def comparison_example():
     print("- Square Law: suitable for modern ranged combat with concentration effects")
     print("- Salvo Model: discrete rounds, individual ships, defensive capabilities")
 
+    return linear, linear_result, square, square_result
+
+
+def plot_all_battles():
+    """Plot all battle examples in a single canvas with multiple subplots."""
+    print("="*50)
+    print("BATTLE VISUALIZATIONS")
+    print("="*50)
+
+    # Run all examples and collect results
+    linear_battle, linear_solution = linear_example()
+    square_battle, square_solution = square_example()
+    salvo_simulation = salvo_example()
+    comp_linear, comp_linear_result, comp_square, comp_square_result = comparison_example()
+
+    # Create a figure with 2x3 subplots
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    fig.suptitle('Lanchester and Salvo Combat Models - All Examples', fontsize=16)
+
+    # Plot 1: Linear Law Example
+    linear_battle.plot_battle(solution=linear_solution,
+                             title="Linear Law Example",
+                             ax=axes[0, 0])
+
+    # Plot 2: Square Law Example
+    square_battle.plot_battle(solution=square_solution,
+                             title="Square Law Example",
+                             ax=axes[0, 1])
+
+    # Plot 3: Salvo Combat Model
+    salvo_simulation.plot_battle_progress(title="Salvo Combat Example",
+                                         ax=axes[0, 2])
+
+    # Plot 4: Direct Comparison - Linear vs Square (same initial forces)
+    axes[1, 0].plot(comp_linear_result['time'], comp_linear_result['A'], 'b-', linewidth=2, label=f'Linear: Force A')
+    axes[1, 0].plot(comp_linear_result['time'], comp_linear_result['B'], 'r-', linewidth=2, label=f'Linear: Force B')
+    axes[1, 0].plot(comp_square_result['time'], comp_square_result['A'], 'b--', linewidth=2, alpha=0.7, label=f'Square: Force A')
+    axes[1, 0].plot(comp_square_result['time'], comp_square_result['B'], 'r--', linewidth=2, alpha=0.7, label=f'Square: Force B')
+    axes[1, 0].set_xlabel('Time')
+    axes[1, 0].set_ylabel('Force Strength')
+    axes[1, 0].set_title('Direct Model Comparison\n(Same Initial Forces)')
+    axes[1, 0].legend(fontsize=8)
+    axes[1, 0].grid(True, alpha=0.3)
+    axes[1, 0].set_xlim(0, max(max(comp_linear_result['time']), max(comp_square_result['time'])))
+    axes[1, 0].set_ylim(0, max(comp_linear.A0, comp_linear.B0) * 1.1)
+
+    # Plot 5: Force Advantage Over Time
+    linear_advantage = comp_linear_result['A'] - comp_linear_result['B']
+    square_advantage = comp_square_result['A'] - comp_square_result['B']
+    axes[1, 1].plot(comp_linear_result['time'], linear_advantage, 'g-', linewidth=2, label='Linear Law Advantage')
+    axes[1, 1].plot(comp_square_result['time'], square_advantage, 'purple', linestyle='--', linewidth=2, label='Square Law Advantage')
+    axes[1, 1].axhline(y=0, color='black', linestyle='-', alpha=0.3)
+    axes[1, 1].set_xlabel('Time')
+    axes[1, 1].set_ylabel('Force Advantage (A - B)')
+    axes[1, 1].set_title('Force Advantage Comparison\n(Positive = A Winning)')
+    axes[1, 1].legend()
+    axes[1, 1].grid(True, alpha=0.3)
+
+    # Plot 6: Model Comparison Summary
+    axes[1, 2].text(0.1, 0.7, "Model Comparison Summary:", fontsize=12, weight='bold')
+    axes[1, 2].text(0.1, 0.6, f"Same initial forces: A={comp_linear.A0}, B={comp_linear.B0}", fontsize=10)
+    axes[1, 2].text(0.1, 0.5, f"Linear winner: {comp_linear_result['winner']} ({comp_linear_result['remaining_strength']:.1f} survivors)", fontsize=10)
+    axes[1, 2].text(0.1, 0.4, f"Square winner: {comp_square_result['winner']} ({comp_square_result['remaining_strength']:.1f} survivors)", fontsize=10)
+    axes[1, 2].text(0.1, 0.3, "Key Differences:", fontsize=11, weight='bold')
+    axes[1, 2].text(0.1, 0.2, "• Linear: hand-to-hand combat", fontsize=9)
+    axes[1, 2].text(0.1, 0.15, "• Square: modern ranged combat", fontsize=9)
+    axes[1, 2].text(0.1, 0.1, "• Salvo: discrete missile/naval", fontsize=9)
+    axes[1, 2].set_xlim(0, 1)
+    axes[1, 2].set_ylim(0, 1)
+    axes[1, 2].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+    print("All battle visualizations complete!")
+
 
 if __name__ == "__main__":
-    linear_example()
-    square_example()
-    salvo_example()
-    comparison_example()
+    plot_all_battles()
