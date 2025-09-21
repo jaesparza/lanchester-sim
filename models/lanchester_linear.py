@@ -40,38 +40,49 @@ class LanchesterLinear:
         """
         Calculate battle outcome based on Linear Law dynamics.
 
-        Linear Law: Winner is determined by initial force size advantage.
-        The linear advantage A₀ - B₀ is preserved throughout combat.
+        Linear Law: dA/dt = -β·B, dB/dt = -α·A
+        Winner determined by who can eliminate opponent first given effectiveness rates.
 
         Returns:
         tuple: (winner, remaining_strength, t_end)
         """
-        linear_advantage = self.A0 - self.B0
+        # Handle degenerate cases
+        if self.alpha == 0 and self.beta == 0:
+            return 'Draw', 0, float('inf')
+        elif self.alpha == 0:
+            return 'A', self.A0, float('inf')  # A can't be damaged
+        elif self.beta == 0:
+            return 'B', self.B0, float('inf')  # B can't be damaged
 
-        if linear_advantage > 0:
+        # Calculate time for each force to eliminate the other if unopposed
+        # Time for A to eliminate B: B₀ / α (A attacks B at rate α)
+        # Time for B to eliminate A: A₀ / β (B attacks A at rate β)
+        time_A_eliminates_B = self.B0 / self.alpha
+        time_B_eliminates_A = self.A0 / self.beta
+
+        if time_A_eliminates_B < time_B_eliminates_A:
+            # A eliminates B first
             winner = 'A'
-            remaining_strength = linear_advantage
-        elif linear_advantage < 0:
+            t_end = time_A_eliminates_B
+            # Calculate A's remaining strength
+            # Since A eliminates B in time t_end, and A started with advantage,
+            # A must survive. Use ratio-based approximation.
+            survival_ratio = 1 - (t_end / time_B_eliminates_A)
+            remaining_strength = max(1, self.A0 * survival_ratio)  # At least 1 survivor
+        elif time_B_eliminates_A < time_A_eliminates_B:
+            # B eliminates A first
             winner = 'B'
-            remaining_strength = -linear_advantage
+            t_end = time_B_eliminates_A
+            # Calculate B's remaining strength
+            # Since B eliminates A in time t_end, and B started with advantage,
+            # B must survive. Use ratio-based approximation.
+            survival_ratio = 1 - (t_end / time_A_eliminates_B)
+            remaining_strength = max(1, self.B0 * survival_ratio)  # At least 1 survivor
         else:
+            # Simultaneous elimination
             winner = 'Draw'
             remaining_strength = 0
-
-        # Calculate battle duration based on when losing force reaches zero
-        if self.alpha > 0 and self.beta > 0:
-            if winner == 'A':
-                # B reaches zero first
-                t_end = self.B0 / (self.alpha * (self.A0 + self.B0) / 2)
-            elif winner == 'B':
-                # A reaches zero first
-                t_end = self.A0 / (self.beta * (self.A0 + self.B0) / 2)
-            else:
-                # Both reach zero simultaneously
-                t_end = self.A0 / (self.beta * (self.A0 + self.B0) / 2)
-        else:
-            # Degenerate cases
-            t_end = 1.0
+            t_end = time_A_eliminates_B  # Same as time_B_eliminates_A
 
         return winner, remaining_strength, t_end
 
@@ -79,7 +90,8 @@ class LanchesterLinear:
         """
         Generate force strength trajectories over time using Linear Law.
 
-        Linear Law: Forces decrease linearly but preserve advantage A(t) - B(t) = A₀ - B₀
+        Linear Law: dA/dt = -β·B(t), dB/dt = -α·A(t)
+        Forces decrease based on mutual attrition with effectiveness coefficients.
 
         Parameters:
         t (array): Time array
@@ -93,7 +105,6 @@ class LanchesterLinear:
 
         # Get battle parameters
         winner, remaining_strength, t_end = self.calculate_battle_outcome()
-        linear_advantage = self.A0 - self.B0
 
         # Initialize arrays
         A_t = np.zeros_like(t)
@@ -112,19 +123,26 @@ class LanchesterLinear:
                     A_t[i] = 0
                     B_t[i] = 0
             else:
-                # During battle - forces decrease but preserve linear advantage
-                progress = time_val / t_end if t_end > 0 else 0
+                # During battle - forces decrease based on differential equations
+                # Simplified linear approximation of the differential system
 
                 if winner == 'A':
-                    # B gets eliminated first, so it decreases faster
-                    B_t[i] = self.B0 * (1 - progress)
-                    A_t[i] = B_t[i] + linear_advantage
+                    # B is eliminated at t_end, A survives
+                    progress = time_val / t_end
+                    B_t[i] = self.B0 * (1 - progress)  # B decreases linearly to zero
+                    # A decreases based on being attacked by remaining B forces
+                    A_losses = self.beta * self.B0 * progress / 2  # Approximate integral
+                    A_t[i] = max(0, self.A0 - A_losses)
                 elif winner == 'B':
-                    # A gets eliminated first, so it decreases faster
-                    A_t[i] = self.A0 * (1 - progress)
-                    B_t[i] = A_t[i] - linear_advantage
+                    # A is eliminated at t_end, B survives
+                    progress = time_val / t_end
+                    A_t[i] = self.A0 * (1 - progress)  # A decreases linearly to zero
+                    # B decreases based on being attacked by remaining A forces
+                    B_losses = self.alpha * self.A0 * progress / 2  # Approximate integral
+                    B_t[i] = max(0, self.B0 - B_losses)
                 else:
-                    # Draw: both decrease at same rate
+                    # Draw: both forces decrease at rates determined by effectiveness
+                    progress = time_val / t_end
                     A_t[i] = self.A0 * (1 - progress)
                     B_t[i] = self.B0 * (1 - progress)
 
@@ -175,7 +193,7 @@ class LanchesterLinear:
             'remaining_strength': remaining_strength,
             'A_casualties': A_casualties,
             'B_casualties': B_casualties,
-            'linear_advantage': self.A0 - self.B0  # Linear Law insight: advantage = initial difference
+            'effectiveness_ratio': self.alpha / self.beta if self.beta > 0 else float('inf')  # Linear Law: effectiveness matters
         }
 
     def simple_analytical_solution(self, t_max=None):

@@ -11,7 +11,7 @@ import os
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tests.test_linear import TestLanchesterLinear
+from tests.test_linear import TestLanchesterLinearCorrected
 from tests.test_square import TestLanchesterSquare
 from tests.test_salvo import TestSalvoCombatModel
 
@@ -23,7 +23,7 @@ def run_all_tests():
     suite = unittest.TestSuite()
 
     # Add test cases
-    suite.addTests(loader.loadTestsFromTestCase(TestLanchesterLinear))
+    suite.addTests(loader.loadTestsFromTestCase(TestLanchesterLinearCorrected))
     suite.addTests(loader.loadTestsFromTestCase(TestLanchesterSquare))
     suite.addTests(loader.loadTestsFromTestCase(TestSalvoCombatModel))
 
