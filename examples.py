@@ -6,7 +6,7 @@ Run this file directly to see all models in action:
     python examples.py
 """
 
-from lanchester_sim import LanchesterLinear, LanchesterSquare, SalvoCombatModel, Ship
+from models import LanchesterLinear, LanchesterSquare, SalvoCombatModel, Ship
 import numpy as np
 
 

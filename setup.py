@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="lanchester-sim",
+    name="models",
     version="0.1.0",
     description="Simple combat simulation using Lanchester Laws and Salvo Combat Model",
     author="José A. Esparza",
