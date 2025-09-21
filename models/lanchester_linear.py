@@ -40,26 +40,40 @@ class LanchesterLinear:
         """
         Calculate battle outcome based on Linear Law dynamics.
 
+        Linear Law: dA/dt = -β·B, dB/dt = -α·A
+        Analytical solution: A(t) - B(t) = A₀ - B₀ (linear advantage is preserved)
+
         Returns:
         tuple: (winner, remaining_strength, t_end)
         """
-        # Calculate when each force would be eliminated
-        t_A_eliminated = self.A0 / self.beta if self.beta > 0 else np.inf
-        t_B_eliminated = self.B0 / self.alpha if self.alpha > 0 else np.inf
+        # Linear Law invariant: A(t) - B(t) = A₀ - B₀
+        linear_advantage = self.A0 - self.B0
 
-        # Battle ends when first force is eliminated
-        t_end = min(t_A_eliminated, t_B_eliminated)
-
-        # Determine winner and remaining strength
-        if t_A_eliminated < t_B_eliminated:
-            winner = 'B'
-            remaining_strength = self.B0 - self.alpha * t_end
-        elif t_B_eliminated < t_A_eliminated:
+        if linear_advantage > 0:
             winner = 'A'
-            remaining_strength = self.A0 - self.beta * t_end
+            remaining_strength = linear_advantage
+            # Battle ends when B is eliminated: B(t_end) = 0
+            # From invariant: A(t_end) = linear_advantage
+            # Time calculation using proper Linear Law dynamics
+            if self.beta > 0:
+                t_end = (1 / (self.alpha + self.beta)) * np.log((self.A0 + self.B0) / self.A0)
+            else:
+                t_end = self.B0 / (self.alpha * self.A0)  # Degenerate case
+        elif linear_advantage < 0:
+            winner = 'B'
+            remaining_strength = -linear_advantage
+            if self.alpha > 0:
+                t_end = (1 / (self.alpha + self.beta)) * np.log((self.A0 + self.B0) / self.B0)
+            else:
+                t_end = self.A0 / (self.beta * self.B0)  # Degenerate case
         else:
             winner = 'Draw'
             remaining_strength = 0
+            # Both forces eliminated simultaneously
+            if self.alpha > 0 and self.beta > 0:
+                t_end = (1 / (self.alpha + self.beta)) * np.log(2)
+            else:
+                t_end = 1.0  # Fallback for degenerate case
 
         return winner, remaining_strength, t_end
 
@@ -67,15 +81,37 @@ class LanchesterLinear:
         """
         Generate force strength trajectories over time using Linear Law.
 
+        Linear Law: dA/dt = -β·B, dB/dt = -α·A
+        Analytical solution: A(t) = (A₀+B₀)/2 + (A₀-B₀)/2 * exp(-(α+β)t)
+                           B(t) = (A₀+B₀)/2 - (A₀-B₀)/2 * exp(-(α+β)t)
+
         Parameters:
         t (array): Time array
 
         Returns:
         tuple: (A_t, B_t) arrays of force strengths
         """
-        # Linear Law dynamics: dA/dt = -β, dB/dt = -α (constant attrition rates)
-        A_t = np.maximum(0, self.A0 - self.beta * t)
-        B_t = np.maximum(0, self.B0 - self.alpha * t)
+        # Handle edge cases
+        if self.alpha == 0 and self.beta == 0:
+            return np.full_like(t, self.A0), np.full_like(t, self.B0)
+
+        # Linear Law analytical solution
+        sum_forces = self.A0 + self.B0
+        diff_forces = self.A0 - self.B0
+        decay_rate = self.alpha + self.beta
+
+        if decay_rate > 0:
+            exp_term = np.exp(-decay_rate * t)
+            A_t = (sum_forces + diff_forces * exp_term) / 2
+            B_t = (sum_forces - diff_forces * exp_term) / 2
+        else:
+            # Degenerate case: forces remain constant
+            A_t = np.full_like(t, self.A0)
+            B_t = np.full_like(t, self.B0)
+
+        # Ensure non-negative values (forces can't go below zero)
+        A_t = np.maximum(0, A_t)
+        B_t = np.maximum(0, B_t)
 
         return A_t, B_t
     
@@ -83,9 +119,10 @@ class LanchesterLinear:
         """
         Analytical solution for the Linear Law.
 
-        Uses the Linear Law relationship where forces decrease at constant rates:
-        dA/dt = -β (force A loses β units per time)
-        dB/dt = -α (force B loses α units per time)
+        Uses the Linear Law relationship: dA/dt = -β·B, dB/dt = -α·A
+
+        The Linear Law models combat where casualties depend on enemy force size.
+        Key insight: A(t) - B(t) = A₀ - B₀ (linear advantage preserved)
 
         Returns:
         dict: Contains time arrays, force strengths, battle end time, and winner
@@ -135,26 +172,8 @@ class LanchesterLinear:
         # Calculate battle outcome using helper method
         winner, remaining_strength, t_end = self.calculate_battle_outcome()
 
-        # For Linear Law with equal effectiveness, use simplified calculation
-        if abs(self.alpha - self.beta) < self.EFFECTIVENESS_TOLERANCE:  # Approximately equal
-            effectiveness = self.alpha  # or self.beta, they're the same
-
-            if self.A0 > self.B0:
-                winner = 'A'
-                remaining_strength = self.A0 - self.B0
-                # Approximate battle duration: time for smaller force to be eliminated
-                t_end = self.B0 / effectiveness
-            elif self.B0 > self.A0:
-                winner = 'B'
-                remaining_strength = self.B0 - self.A0
-                t_end = self.A0 / effectiveness
-            else:
-                winner = 'Draw'
-                remaining_strength = 0
-                t_end = self.A0 / effectiveness  # Both eliminated simultaneously
-        # If effectiveness differs significantly, fall back to general solution
-        else:
-            return self.analytical_solution(t_max)
+        # The calculation is already correct in the helper method using proper Linear Law
+        # No need for special case handling - the general solution works for all cases
 
         # Create time array
         if t_max is None:
