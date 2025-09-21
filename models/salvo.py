@@ -267,9 +267,8 @@ class SalvoCombatModel:
                 print(f"Defensive similarity: {defensive_similarity:.3f} (threshold: {self.FORCE_EFFECTIVENESS_TOLERANCE * 10:.3f})")
                 print("Using full simulation due to defensive capability differences.\n")
 
-            # Run full simulation but potentially quieter
-            original_quiet = not quiet
-            result = self.run_simulation(max_rounds) if original_quiet else "Full simulation completed"
+            # Run full simulation
+            result = self.run_simulation(max_rounds, quiet=quiet)
 
             stats = self.get_battle_statistics()
             stats['method'] = 'full_simulation'
