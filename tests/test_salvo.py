@@ -152,6 +152,27 @@ class TestSalvoCombatModel(unittest.TestCase):
         self.assertEqual(result['method'], 'full_simulation')
         self.assertIn('defensive_similarity', result)
 
+    def test_reference_seeded_battle(self):
+        """Exercise deterministic reference run highlighted during review."""
+
+        force_a = [
+            Ship(name="Destroyer", offensive_power=10, defensive_power=0.3, staying_power=5),
+            Ship(name="Frigate", offensive_power=8, defensive_power=0.2, staying_power=4),
+        ]
+        force_b = [
+            Ship(name="Cruiser", offensive_power=9, defensive_power=0.25, staying_power=4),
+            Ship(name="Corvette", offensive_power=7, defensive_power=0.35, staying_power=3),
+        ]
+
+        model = SalvoCombatModel(force_a=force_a, force_b=force_b, random_seed=42)
+        outcome = model.run_simulation(quiet=True)
+        stats = model.get_battle_statistics()
+
+        self.assertEqual(outcome, 'Force A Victory')
+        self.assertEqual(stats['rounds'], 1)
+        self.assertEqual(stats['force_a_survivors'], 2)
+        self.assertEqual(stats['force_b_survivors'], 0)
+
     def test_battle_statistics(self):
         """Test battle statistics calculation."""
         # Run a battle and get statistics

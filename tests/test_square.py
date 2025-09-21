@@ -30,6 +30,29 @@ class TestLanchesterSquare(unittest.TestCase):
         # Asymmetric effectiveness - A has better weapons
         self.battle_asymmetric = LanchesterSquare(A0=80, B0=100, alpha=0.02, beta=0.01)
 
+    def test_reference_equal_effectiveness_scenario(self):
+        """Exercise the canonical square-law scenario highlighted in review."""
+
+        battle = LanchesterSquare(A0=100, B0=80, alpha=0.01, beta=0.01)
+        winner, remaining, invariant = battle.calculate_battle_outcome()
+
+        self.assertEqual(winner, 'A')
+        self.assertAlmostEqual(remaining, 60.0, places=2)
+
+        expected_invariant = battle.alpha * battle.A0**2 - battle.beta * battle.B0**2
+        self.assertAlmostEqual(invariant, expected_invariant, places=5)
+
+        solution = battle.analytical_solution()
+        self.assertAlmostEqual(solution['battle_end_time'], 109.86122886681098, places=5)
+
+        time = solution['time']
+        idx = np.searchsorted(time, solution['battle_end_time'])
+        if idx >= len(time):
+            idx = -1
+
+        self.assertAlmostEqual(solution['A'][idx], 60.0, places=2)
+        self.assertAlmostEqual(solution['B'][idx], 0.0, places=2)
+
     def test_square_law_invariant(self):
         """Test that Square Law invariant α·A²(t) - β·B²(t) = constant holds."""
         for battle in [self.battle_a_wins, self.battle_b_wins, self.battle_asymmetric]:
