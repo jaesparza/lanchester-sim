@@ -46,7 +46,6 @@ Run the examples file to see all models in action:
 ```bash
 python examples.py
 ```
-![Combat Models Dashboard](images/example.png)
 
 ## Key Features
 - **Monte Carlo analysis** for statistical outcomes
