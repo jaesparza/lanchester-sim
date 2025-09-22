@@ -225,6 +225,46 @@ class TestLanchesterSquare(unittest.TestCase):
         self.assertAlmostEqual(solution_b['battle_end_time'], expected_duration_b, places=5,
                               msg=f"B elimination duration should be {expected_duration_b:.3f}")
 
+    def test_simple_vs_full_solution_consistency(self):
+        """Test that simple and full analytical solutions give identical results for equal effectiveness."""
+        # This test prevents regression of the dimensional inconsistency bug in simple_analytical_solution
+
+        # Test case 1: Canonical 100 vs 80 fight
+        battle1 = LanchesterSquare(A0=100, B0=80, alpha=0.01, beta=0.01)
+        simple1 = battle1.simple_analytical_solution()
+        full1 = battle1.analytical_solution()
+
+        self.assertAlmostEqual(simple1['battle_end_time'], full1['battle_end_time'], places=10,
+                              msg="Simple and full solutions should give identical battle durations")
+        self.assertAlmostEqual(simple1['remaining_strength'], full1['remaining_strength'], places=10,
+                              msg="Simple and full solutions should give identical remaining strength")
+        self.assertEqual(simple1['winner'], full1['winner'],
+                        msg="Simple and full solutions should predict the same winner")
+
+        # Test case 2: B wins scenario
+        battle2 = LanchesterSquare(A0=60, B0=90, alpha=0.02, beta=0.02)
+        simple2 = battle2.simple_analytical_solution()
+        full2 = battle2.analytical_solution()
+
+        self.assertAlmostEqual(simple2['battle_end_time'], full2['battle_end_time'], places=10)
+        self.assertAlmostEqual(simple2['remaining_strength'], full2['remaining_strength'], places=10)
+        self.assertEqual(simple2['winner'], full2['winner'])
+
+        # Test case 3: Draw scenario
+        battle3 = LanchesterSquare(A0=50, B0=50, alpha=0.01, beta=0.01)
+        simple3 = battle3.simple_analytical_solution()
+        full3 = battle3.analytical_solution()
+
+        self.assertAlmostEqual(simple3['battle_end_time'], full3['battle_end_time'], places=10)
+        self.assertAlmostEqual(simple3['remaining_strength'], full3['remaining_strength'], places=10)
+        self.assertEqual(simple3['winner'], full3['winner'])
+
+        # Verify that the simple solution no longer uses the dimensionally incorrect formula
+        # The old buggy formula was: t_end = 1.0 / (effectiveness * sqrt(A0 * B0))
+        # For the canonical case, this would give ~1.118 instead of ~109.861
+        self.assertGreater(simple1['battle_end_time'], 100.0,
+                          msg="Simple solution should give realistic battle duration, not dimensionally incorrect ~1.1")
+
     def test_input_validation(self):
         """Test that invalid inputs raise appropriate errors."""
         with self.assertRaises(ValueError):

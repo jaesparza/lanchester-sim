@@ -255,23 +255,21 @@ class LanchesterSquare:
         """
         # Calculate the Square Law invariant for equal effectiveness case
         if abs(self.alpha - self.beta) < self.EFFECTIVENESS_TOLERANCE:  # Approximately equal
-            effectiveness = self.alpha  # or self.beta, they're the same
+            # Use same outcome calculation as full analytical solution
+            invariant = self.alpha * self.A0**2 - self.beta * self.B0**2
 
-            if self.A0**2 > self.B0**2:
+            if invariant > 0:
                 winner = 'A'
-                remaining_strength = np.sqrt(self.A0**2 - self.B0**2)
-                # Approximate battle duration
-                t_end = 1.0 / (effectiveness * np.sqrt(self.A0 * self.B0))
-            elif self.B0**2 > self.A0**2:
+                remaining_strength = np.sqrt(invariant / self.alpha)
+            elif invariant < 0:
                 winner = 'B'
-                remaining_strength = np.sqrt(self.B0**2 - self.A0**2)
-                t_end = 1.0 / (effectiveness * np.sqrt(self.A0 * self.B0))
+                remaining_strength = np.sqrt(-invariant / self.beta)
             else:
                 winner = 'Draw'
                 remaining_strength = 0
-                t_end = 1.0 / (effectiveness * np.sqrt(self.A0 * self.B0))
 
-            invariant = self.alpha * self.A0**2 - self.beta * self.B0**2
+            # Use the same battle end time calculation as the full analytical solution
+            t_end = self.calculate_battle_end_time(winner, remaining_strength, invariant)
         else:
             # Use general case (fallback to original method)
             return self.analytical_solution(t_max)
