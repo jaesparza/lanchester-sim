@@ -58,7 +58,7 @@ python examples.py
 
 | Model | Best For | Key Insight |
 |-------|----------|-------------|
-| Linear Law | Hand-to-hand, guerrilla warfare | Winner = A₀ - B₀ |
+| Linear Law | Hand-to-hand, guerrilla warfare | Winner = αA₀ - βB₀ |
 | Square Law | Modern ranged combat | Winner = √(A₀² - B₀²) |
 | Salvo Model | Naval/missile combat | Discrete rounds, defensive systems |
 

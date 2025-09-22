@@ -110,7 +110,7 @@ class LanchesterLinear:
         """
         Analytical solution for the Linear Law.
 
-        Uses the Linear Law principle: A(t) - B(t) = A₀ - B₀ (linear advantage preserved)
+        Uses the Linear Law principle: αA(t) - βB(t) = αA₀ - βB₀ (true Linear Law invariant)
 
         Returns:
         dict: Contains time arrays, force strengths, battle end time, and winner
@@ -147,7 +147,7 @@ class LanchesterLinear:
             'remaining_strength': remaining_strength,
             'A_casualties': A_casualties,
             'B_casualties': B_casualties,
-            'linear_advantage': self.A0 - self.B0  # Linear Law insight: initial size advantage
+            'linear_advantage': self.alpha * self.A0 - self.beta * self.B0  # Linear Law insight: true invariant
         }
 
     def simple_analytical_solution(self, t_max=None):
@@ -192,7 +192,8 @@ class LanchesterLinear:
         ax.set_ylim(0, max(self.A0, self.B0) * 1.1)
 
         # Add winner annotation and Linear Law insight
-        info_text = f"Winner: {solution['winner']}\nLinear Law Advantage: {self.A0:.0f} - {self.B0:.0f} = {self.A0 - self.B0:.0f}"
+        linear_advantage = self.alpha * self.A0 - self.beta * self.B0
+        info_text = f"Winner: {solution['winner']}\nLinear Law Advantage: α{self.A0:.0f} - β{self.B0:.0f} = {linear_advantage:.2f}"
         ax.text(0.02, 0.98, info_text,
                 transform=ax.transAxes, fontsize=11,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightgreen'))
@@ -212,7 +213,7 @@ if __name__ == "__main__":
     print(f"Winner: {solution1['winner']} with {solution1['remaining_strength']:.1f} units remaining")
     print(f"Force A casualties: {solution1['A_casualties']:.1f}")
     print(f"Force B casualties: {solution1['B_casualties']:.1f}")
-    print(f"Linear Law advantage: A₀ - B₀ = {battle1.A0} - {battle1.B0} = {battle1.A0 - battle1.B0}")
+    print(f"Linear Law advantage: αA₀ - βB₀ = {battle1.alpha}×{battle1.A0} - {battle1.beta}×{battle1.B0} = {battle1.alpha * battle1.A0 - battle1.beta * battle1.B0:.2f}")
     print()
 
     # Example 2: Effectiveness vs. numbers
@@ -222,7 +223,7 @@ if __name__ == "__main__":
 
     print(f"Battle ends at t = {solution2['battle_end_time']:.2f}")
     print(f"Winner: {solution2['winner']} with {solution2['remaining_strength']:.1f} units remaining")
-    print(f"Linear Law advantage: A₀ - B₀ = {battle2.A0} - {battle2.B0} = {battle2.A0 - battle2.B0}")
+    print(f"Linear Law advantage: αA₀ - βB₀ = {battle2.alpha}×{battle2.A0} - {battle2.beta}×{battle2.B0} = {battle2.alpha * battle2.A0 - battle2.beta * battle2.B0:.2f}")
     print(f"A's effectiveness: α = {battle2.alpha}")
     print(f"B's effectiveness: β = {battle2.beta}")
     print()

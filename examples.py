@@ -23,7 +23,7 @@ def linear_example():
     print(f"Winner: {solution['winner']}")
     print(f"Battle duration: {solution['battle_end_time']:.2f} time units")
     print(f"Survivors: {solution['remaining_strength']:.1f}")
-    print(f"Linear Law insight: {battle.A0} - {battle.B0} = {battle.A0 - battle.B0}")
+    print(f"Linear Law insight: α{battle.A0} - β{battle.B0} = {battle.alpha * battle.A0 - battle.beta * battle.B0:.2f}")
     print()
 
     return battle, solution
@@ -148,6 +148,8 @@ def plot_all_battles():
     axes[1, 0].set_ylim(0, max(comp_linear.A0, comp_linear.B0) * 1.1)
 
     # Plot 5: Force Advantage Over Time
+    # Note: For Linear Law, true advantage should use effectiveness weights, but for visualization
+    # we show the raw force difference for comparison with Square Law
     linear_advantage = comp_linear_result['A'] - comp_linear_result['B']
     square_advantage = comp_square_result['A'] - comp_square_result['B']
     axes[1, 1].plot(comp_linear_result['time'], linear_advantage, 'g-', linewidth=2, label='Linear Law Advantage')
