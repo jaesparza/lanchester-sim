@@ -207,6 +207,117 @@ class TestLanchesterLinear(unittest.TestCase):
                             msg="Winner B should maintain constant strength after battle end"
                         )
 
+    def test_linear_advantage_field_validation(self):
+        """Test that analytical_solution returns correct linear_advantage field.
+
+        Critical regression test: ensures αA₀ - βB₀ calculation is preserved
+        and doesn't revert to incorrect A₀ - B₀ formula.
+        """
+        # Test 1: Equal effectiveness (α=β) - should match simple difference
+        battle_equal = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.5)
+        solution_equal = battle_equal.analytical_solution()
+        expected_equal = 0.5 * 100 - 0.5 * 80  # αA₀ - βB₀ = 50 - 40 = 10
+        self.assertAlmostEqual(solution_equal['linear_advantage'], expected_equal, places=2,
+                              msg="Equal effectiveness: αA₀-βB₀ should equal 0.5×100-0.5×80=10")
+
+        # Verify this matches simple difference when α=β
+        simple_difference = 100 - 80  # A₀ - B₀ = 20
+        self.assertAlmostEqual(solution_equal['linear_advantage'], simple_difference * 0.5, places=2,
+                              msg="When α=β, weighted advantage should be α×(A₀-B₀)")
+
+        # Test 2: Different effectiveness - critical test for bug prevention
+        battle_diff = LanchesterLinear(A0=100, B0=80, alpha=0.8, beta=0.3)
+        solution_diff = battle_diff.analytical_solution()
+        expected_diff = 0.8 * 100 - 0.3 * 80  # αA₀ - βB₀ = 80 - 24 = 56
+        self.assertAlmostEqual(solution_diff['linear_advantage'], expected_diff, places=2,
+                              msg="Different effectiveness: αA₀-βB₀ should equal 0.8×100-0.3×80=56")
+
+        # This should NOT equal the simple difference (regression test)
+        wrong_simple = 100 - 80  # A₀ - B₀ = 20
+        self.assertNotAlmostEqual(solution_diff['linear_advantage'], wrong_simple, places=1,
+                                 msg="Different effectiveness: should NOT equal A₀-B₀=20")
+
+        # Test 3: Zero effectiveness scenarios
+        battle_zero_a = LanchesterLinear(A0=100, B0=80, alpha=0, beta=0.5)
+        solution_zero_a = battle_zero_a.analytical_solution()
+        expected_zero_a = 0 * 100 - 0.5 * 80  # 0 - 40 = -40
+        self.assertAlmostEqual(solution_zero_a['linear_advantage'], expected_zero_a, places=2,
+                              msg="Zero α: should equal 0×100-0.5×80=-40")
+
+        battle_zero_b = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0)
+        solution_zero_b = battle_zero_b.analytical_solution()
+        expected_zero_b = 0.5 * 100 - 0 * 80  # 50 - 0 = 50
+        self.assertAlmostEqual(solution_zero_b['linear_advantage'], expected_zero_b, places=2,
+                              msg="Zero β: should equal 0.5×100-0×80=50")
+
+        battle_zero_both = LanchesterLinear(A0=100, B0=80, alpha=0, beta=0)
+        solution_zero_both = battle_zero_both.analytical_solution()
+        expected_zero_both = 0 * 100 - 0 * 80  # 0 - 0 = 0
+        self.assertAlmostEqual(solution_zero_both['linear_advantage'], expected_zero_both, places=2,
+                              msg="Both zero: should equal 0×100-0×80=0")
+
+        # Test 4: Negative advantage scenarios
+        battle_negative = LanchesterLinear(A0=50, B0=100, alpha=0.2, beta=0.8)
+        solution_negative = battle_negative.analytical_solution()
+        expected_negative = 0.2 * 50 - 0.8 * 100  # 10 - 80 = -70
+        self.assertAlmostEqual(solution_negative['linear_advantage'], expected_negative, places=2,
+                              msg="Negative advantage: should equal 0.2×50-0.8×100=-70")
+
+    def test_analytical_solution_completeness(self):
+        """Test that analytical_solution returns all expected fields with correct values.
+
+        Ensures all returned fields are tested and prevents regression of untested fields.
+        """
+        battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+        solution = battle.analytical_solution()
+        winner, remaining_strength, t_end = battle.calculate_battle_outcome()
+
+        # Test required fields exist
+        required_fields = ['time', 'A', 'B', 'battle_end_time', 'winner',
+                          'remaining_strength', 'A_casualties', 'B_casualties', 'linear_advantage']
+        for field in required_fields:
+            self.assertIn(field, solution, f"Missing required field: {field}")
+
+        # Test battle_end_time consistency
+        self.assertAlmostEqual(solution['battle_end_time'], t_end, places=2,
+                              msg="analytical_solution battle_end_time should match calculate_battle_outcome")
+
+        # Test winner consistency
+        self.assertEqual(solution['winner'], winner,
+                        msg="analytical_solution winner should match calculate_battle_outcome")
+
+        # Test remaining_strength consistency
+        self.assertAlmostEqual(solution['remaining_strength'], remaining_strength, places=2,
+                              msg="analytical_solution remaining_strength should match calculate_battle_outcome")
+
+        # Test casualties calculation
+        if winner == 'A':
+            expected_A_casualties = battle.A0 - remaining_strength
+            expected_B_casualties = battle.B0
+        elif winner == 'B':
+            expected_A_casualties = battle.A0
+            expected_B_casualties = battle.B0 - remaining_strength
+        else:  # Draw
+            expected_A_casualties = battle.A0
+            expected_B_casualties = battle.B0
+
+        self.assertAlmostEqual(solution['A_casualties'], expected_A_casualties, places=2,
+                              msg="A_casualties should be calculated correctly")
+        self.assertAlmostEqual(solution['B_casualties'], expected_B_casualties, places=2,
+                              msg="B_casualties should be calculated correctly")
+
+        # Test time array properties
+        self.assertTrue(len(solution['time']) > 0, "Time array should not be empty")
+        self.assertEqual(solution['time'][0], 0, "Time should start at 0")
+        self.assertTrue(solution['time'][-1] > solution['battle_end_time'],
+                       "Time should extend beyond battle end")
+
+        # Test trajectory array lengths match time array
+        self.assertEqual(len(solution['A']), len(solution['time']),
+                        "Force A trajectory should match time array length")
+        self.assertEqual(len(solution['B']), len(solution['time']),
+                        "Force B trajectory should match time array length")
+
     def test_input_validation(self):
         """Test that invalid inputs raise appropriate errors."""
         with self.assertRaises(ValueError):
