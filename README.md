@@ -49,9 +49,6 @@ python examples.py
 ![Combat Models Dashboard](images/example.png)
 
 ## Key Features
-
-- **Well-documented constants** for easy parameter tuning
-- **Helper methods** eliminating code duplication
 - **Monte Carlo analysis** for statistical outcomes
 - **Simple and full simulation modes**
 - **Plotting capabilities** with model-specific insights
