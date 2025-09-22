@@ -89,9 +89,16 @@ class LanchesterLinear:
 
         for i, time_val in enumerate(t):
             if time_val <= t_end:
-                # During battle: linear decrease
-                A_t[i] = max(0, self.A0 - self.beta * time_val)
-                B_t[i] = max(0, self.B0 - self.alpha * time_val)
+                # During battle: linear decrease (handle zero effectiveness explicitly)
+                if self.beta == 0:
+                    A_t[i] = self.A0  # No attrition if beta = 0
+                else:
+                    A_t[i] = max(0, self.A0 - self.beta * time_val)
+
+                if self.alpha == 0:
+                    B_t[i] = self.B0  # No attrition if alpha = 0
+                else:
+                    B_t[i] = max(0, self.B0 - self.alpha * time_val)
             else:
                 # After battle: winner maintains remaining strength, loser stays at zero
                 if winner == 'A':
@@ -120,7 +127,11 @@ class LanchesterLinear:
 
         # Create time array
         if t_max is None:
-            t_max = max(t_end * self.TIME_EXTENSION_FACTOR, t_end + self.TIME_MINIMUM_EXTENSION)
+            if np.isinf(t_end):
+                # For infinite battles (zero effectiveness), use a reasonable time window
+                t_max = 10.0  # Show static forces for 10 time units
+            else:
+                t_max = max(t_end * self.TIME_EXTENSION_FACTOR, t_end + self.TIME_MINIMUM_EXTENSION)
 
         t = np.linspace(0, t_max, self.DEFAULT_TIME_POINTS)
 

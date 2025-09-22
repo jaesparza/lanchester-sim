@@ -91,6 +91,26 @@ class TestLanchesterLinear(unittest.TestCase):
         self.assertEqual(winner, 'A')  # A wins because B can't fight back
         self.assertEqual(remaining, 100)  # A survives intact
 
+        # Both zero effectiveness - infinite stalemate
+        battle_zero_both = LanchesterLinear(A0=100, B0=50, alpha=0, beta=0)
+        winner, remaining, t_end = battle_zero_both.calculate_battle_outcome()
+        self.assertEqual(winner, 'Draw')  # Nobody can damage anyone
+        self.assertEqual(remaining, 0)  # Draw convention
+        self.assertTrue(np.isinf(t_end))  # Battle never ends
+
+        # Test that analytical solution handles infinite battle duration without inf/NaN
+        solution = battle_zero_both.analytical_solution()
+        self.assertFalse(np.any(np.isinf(solution['time'])))  # Time array should be finite
+        self.assertFalse(np.any(np.isnan(solution['time'])))  # No NaN values
+        self.assertFalse(np.any(np.isinf(solution['A'])))     # Force A trajectory finite
+        self.assertFalse(np.any(np.isnan(solution['A'])))     # No NaN values
+        self.assertFalse(np.any(np.isinf(solution['B'])))     # Force B trajectory finite
+        self.assertFalse(np.any(np.isnan(solution['B'])))     # No NaN values
+
+        # Forces should remain constant (no attrition)
+        self.assertTrue(np.all(solution['A'] == 100))  # A force stays at 100
+        self.assertTrue(np.all(solution['B'] == 50))   # B force stays at 50
+
     def test_battle_duration_calculation(self):
         """Test that battle duration is calculated correctly."""
         # Simple case: A eliminates B
