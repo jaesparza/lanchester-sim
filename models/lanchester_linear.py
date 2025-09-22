@@ -63,7 +63,15 @@ class LanchesterLinear:
             remaining_strength = self.A0 - self.beta * t_end
         else:
             winner = 'Draw'
-            remaining_strength = 0
+            # Special case: when both elimination times are infinite (α=0 and β=0),
+            # no attrition occurs, so remaining_strength should reflect survival
+            if np.isinf(t_end):
+                # In infinite stalemate, forces can't damage each other
+                # Convention: report the larger force as "remaining" for draw scenarios
+                remaining_strength = max(self.A0, self.B0)
+            else:
+                # Finite simultaneous elimination
+                remaining_strength = 0
 
         return winner, remaining_strength, t_end
 
@@ -145,9 +153,15 @@ class LanchesterLinear:
         elif winner == 'B':
             A_casualties = self.A0
             B_casualties = self.B0 - remaining_strength
-        else:
-            A_casualties = self.A0
-            B_casualties = self.B0
+        else:  # Draw
+            if np.isinf(t_end):
+                # Infinite stalemate: no attrition possible when both α=0 and β=0
+                A_casualties = 0
+                B_casualties = 0
+            else:
+                # Finite simultaneous elimination: both forces destroyed
+                A_casualties = self.A0
+                B_casualties = self.B0
 
         return {
             'time': t,

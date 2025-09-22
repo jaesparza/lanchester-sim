@@ -95,7 +95,7 @@ class TestLanchesterLinear(unittest.TestCase):
         battle_zero_both = LanchesterLinear(A0=100, B0=50, alpha=0, beta=0)
         winner, remaining, t_end = battle_zero_both.calculate_battle_outcome()
         self.assertEqual(winner, 'Draw')  # Nobody can damage anyone
-        self.assertEqual(remaining, 0)  # Draw convention
+        self.assertEqual(remaining, 100)  # Larger force survives (no attrition possible)
         self.assertTrue(np.isinf(t_end))  # Battle never ends
 
         # Test that analytical solution handles infinite battle duration without inf/NaN
