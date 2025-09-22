@@ -265,6 +265,64 @@ class TestLanchesterSquare(unittest.TestCase):
         self.assertGreater(simple1['battle_end_time'], 100.0,
                           msg="Simple solution should give realistic battle duration, not dimensionally incorrect ~1.1")
 
+    def test_gradient_ode_verification(self):
+        """Test that trajectories satisfy the square-law ODE: dA/dt = -β*B, dB/dt = -α*A."""
+        # Test multiple scenarios to ensure ODE is satisfied
+        test_battles = [
+            self.battle_a_wins,
+            self.battle_b_wins,
+            self.battle_asymmetric
+        ]
+
+        for battle in test_battles:
+            with self.subTest(battle=battle):
+                solution = battle.analytical_solution()
+
+                # Calculate gradients using numpy
+                dA_dt = np.gradient(solution['A'], solution['time'])
+                dB_dt = np.gradient(solution['B'], solution['time'])
+
+                # Find indices before battle end time for verification
+                t_end = solution['battle_end_time']
+                before_end_mask = solution['time'] < t_end
+
+                # Only check points where both forces exist and battle is ongoing
+                valid_mask = before_end_mask & (solution['A'] > 1e-6) & (solution['B'] > 1e-6)
+
+                if not np.any(valid_mask):
+                    continue  # Skip if no valid points (e.g., very short battle)
+
+                # Test at several points before t_end
+                valid_indices = np.where(valid_mask)[0]
+                test_indices = valid_indices[::max(1, len(valid_indices)//10)]  # Sample ~10 points
+
+                for i in test_indices:
+                    A_val = solution['A'][i]
+                    B_val = solution['B'][i]
+
+                    # Expected derivatives from Square Law ODE
+                    expected_dA_dt = -battle.beta * B_val
+                    expected_dB_dt = -battle.alpha * A_val
+
+                    actual_dA_dt = dA_dt[i]
+                    actual_dB_dt = dB_dt[i]
+
+                    # Check that gradients match ODE within reasonable tolerance
+                    # Use relative tolerance for non-zero values
+                    rel_tol = 0.1  # 10% tolerance for numerical gradients
+
+                    if abs(expected_dA_dt) > 1e-10:
+                        rel_error_A = abs(actual_dA_dt - expected_dA_dt) / abs(expected_dA_dt)
+                        self.assertLess(rel_error_A, rel_tol,
+                                      f"dA/dt mismatch at t={solution['time'][i]:.3f}: "
+                                      f"expected {expected_dA_dt:.6f}, got {actual_dA_dt:.6f}")
+
+                    if abs(expected_dB_dt) > 1e-10:
+                        rel_error_B = abs(actual_dB_dt - expected_dB_dt) / abs(expected_dB_dt)
+                        self.assertLess(rel_error_B, rel_tol,
+                                      f"dB/dt mismatch at t={solution['time'][i]:.3f}: "
+                                      f"expected {expected_dB_dt:.6f}, got {actual_dB_dt:.6f}")
+
     def test_input_validation(self):
         """Test that invalid inputs raise appropriate errors."""
         with self.assertRaises(ValueError):

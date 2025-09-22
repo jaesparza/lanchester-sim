@@ -148,34 +148,63 @@ class LanchesterSquare:
                     A_t[i] = 0
                     B_t[i] = 0
             else:
-                # Square Law dynamics: dA/dt = -β*A*B, dB/dt = -α*A*B
-                # Use Square Law approximation based on invariant conservation
-                time_ratio = time / t_end if t_end > 0 else 0
+                # Square Law dynamics: dA/dt = -β*B, dB/dt = -α*A
+                if self.alpha > 0 and self.beta > 0:
+                    # Use exact hyperbolic closed form solutions
+                    gamma = np.sqrt(self.alpha * self.beta)
+                    A_exact = self.A0 * np.cosh(gamma * time) - np.sqrt(self.beta / self.alpha) * self.B0 * np.sinh(gamma * time)
+                    B_exact = self.B0 * np.cosh(gamma * time) - np.sqrt(self.alpha / self.beta) * self.A0 * np.sinh(gamma * time)
 
-                if winner == 'A' and self.alpha > 0:
-                    # B decreases faster, maintaining Square Law relationship
-                    B_remaining = self.B0 * (1 - time_ratio**2)  # Quadratic decay for losing force
-                    # Use invariant: α*A² - β*B² = constant
-                    A_squared = (invariant + self.beta * B_remaining**2) / self.alpha
-                    A_t[i] = max(0, np.sqrt(max(0, A_squared)))
-                    B_t[i] = max(0, B_remaining)
-                elif winner == 'B' and self.beta > 0:
-                    # A decreases faster, maintaining Square Law relationship
-                    A_remaining = self.A0 * (1 - time_ratio**2)  # Quadratic decay for losing force
-                    # Use invariant: α*A² - β*B² = constant
-                    B_squared = (self.alpha * A_remaining**2 - invariant) / self.beta
-                    A_t[i] = max(0, A_remaining)
-                    B_t[i] = max(0, np.sqrt(max(0, B_squared)))
-                else:
-                    # Draw case or degenerate case: both decrease at same rate
-                    if t_end > 0:
-                        decay = 1 - time_ratio**2
-                        A_t[i] = max(0, self.A0 * decay)
-                        B_t[i] = max(0, self.B0 * decay)
+                    # Clamp trajectories to proper final values at t_end
+                    if winner == 'A':
+                        A_t[i] = max(0, min(A_exact, self.A0))
+                        B_t[i] = max(0, B_exact)
+                        # Ensure loser goes to zero at t_end
+                        if time >= t_end:
+                            A_t[i] = remaining_strength
+                            B_t[i] = 0
+                    elif winner == 'B':
+                        A_t[i] = max(0, A_exact)
+                        B_t[i] = max(0, min(B_exact, self.B0))
+                        # Ensure loser goes to zero at t_end
+                        if time >= t_end:
+                            A_t[i] = 0
+                            B_t[i] = remaining_strength
                     else:
-                        # No meaningful combat
-                        A_t[i] = self.A0
-                        B_t[i] = self.B0
+                        # Draw case
+                        A_t[i] = max(0, A_exact)
+                        B_t[i] = max(0, B_exact)
+                        if time >= t_end:
+                            A_t[i] = 0
+                            B_t[i] = 0
+                else:
+                    # Fallback for degenerate cases (alpha = 0 or beta = 0)
+                    time_ratio = time / t_end if t_end > 0 else 0
+
+                    if winner == 'A' and self.alpha > 0:
+                        # B decreases faster, maintaining Square Law relationship
+                        B_remaining = self.B0 * (1 - time_ratio**2)  # Quadratic decay for losing force
+                        # Use invariant: α*A² - β*B² = constant
+                        A_squared = (invariant + self.beta * B_remaining**2) / self.alpha
+                        A_t[i] = max(0, np.sqrt(max(0, A_squared)))
+                        B_t[i] = max(0, B_remaining)
+                    elif winner == 'B' and self.beta > 0:
+                        # A decreases faster, maintaining Square Law relationship
+                        A_remaining = self.A0 * (1 - time_ratio**2)  # Quadratic decay for losing force
+                        # Use invariant: α*A² - β*B² = constant
+                        B_squared = (self.alpha * A_remaining**2 - invariant) / self.beta
+                        A_t[i] = max(0, A_remaining)
+                        B_t[i] = max(0, np.sqrt(max(0, B_squared)))
+                    else:
+                        # Draw case or degenerate case: both decrease at same rate
+                        if t_end > 0:
+                            decay = 1 - time_ratio**2
+                            A_t[i] = max(0, self.A0 * decay)
+                            B_t[i] = max(0, self.B0 * decay)
+                        else:
+                            # No meaningful combat
+                            A_t[i] = self.A0
+                            B_t[i] = self.B0
 
         return A_t, B_t
 
