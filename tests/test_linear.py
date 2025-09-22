@@ -110,18 +110,29 @@ class TestLanchesterLinear(unittest.TestCase):
         self.assertLess(remaining, self.battle_a_superior.A0)
 
     def test_linear_trajectories(self):
-        """Test that force trajectories follow Linear Law: A(t) = A₀ - βt, B(t) = B₀ - αt."""
+        """Test that force trajectories follow Linear Law during battle and stop correctly."""
         solution = self.battle_a_wins.analytical_solution()
+        winner, remaining_strength, t_end = self.battle_a_wins.calculate_battle_outcome()
 
-        # Check that trajectories are linear
+        # Check trajectories at different phases
         t = solution['time']
-        A_expected = np.maximum(0, self.battle_a_wins.A0 - self.battle_a_wins.beta * t)
-        B_expected = np.maximum(0, self.battle_a_wins.B0 - self.battle_a_wins.alpha * t)
 
-        # Test at several points
-        for i in range(0, len(t), 100):
-            self.assertAlmostEqual(solution['A'][i], A_expected[i], places=1)
-            self.assertAlmostEqual(solution['B'][i], B_expected[i], places=1)
+        # During battle: should follow A(t) = A₀ - βt, B(t) = B₀ - αt
+        mid_battle_idx = len(t) // 4  # Early in battle
+        if t[mid_battle_idx] < t_end:
+            expected_A = self.battle_a_wins.A0 - self.battle_a_wins.beta * t[mid_battle_idx]
+            expected_B = self.battle_a_wins.B0 - self.battle_a_wins.alpha * t[mid_battle_idx]
+            self.assertAlmostEqual(solution['A'][mid_battle_idx], expected_A, places=1)
+            self.assertAlmostEqual(solution['B'][mid_battle_idx], expected_B, places=1)
+
+        # After battle: winner should maintain remaining strength
+        final_idx = -1
+        if winner == 'A':
+            self.assertAlmostEqual(solution['A'][final_idx], remaining_strength, places=1)
+            self.assertEqual(solution['B'][final_idx], 0)
+        elif winner == 'B':
+            self.assertEqual(solution['A'][final_idx], 0)
+            self.assertAlmostEqual(solution['B'][final_idx], remaining_strength, places=1)
 
     def test_input_validation(self):
         """Test that invalid inputs raise appropriate errors."""

@@ -71,8 +71,8 @@ class LanchesterLinear:
         """
         Generate force strength trajectories over time using Linear Law.
 
-        Linear Law: A(t) = A₀ - βt, B(t) = B₀ - αt (constant attrition rates)
-        Forces decrease linearly until one is eliminated.
+        Linear Law: A(t) = A₀ - βt, B(t) = B₀ - αt until battle ends
+        After battle end, winner maintains remaining strength, loser stays at zero.
 
         Parameters:
         t (array): Time array
@@ -80,9 +80,29 @@ class LanchesterLinear:
         Returns:
         tuple: (A_t, B_t) arrays of force strengths
         """
-        # Calculate force strengths over time using Linear Law
-        A_t = np.maximum(0, self.A0 - self.beta * t)
-        B_t = np.maximum(0, self.B0 - self.alpha * t)
+        # Get battle outcome
+        winner, remaining_strength, t_end = self.calculate_battle_outcome()
+
+        # Initialize arrays
+        A_t = np.zeros_like(t)
+        B_t = np.zeros_like(t)
+
+        for i, time_val in enumerate(t):
+            if time_val <= t_end:
+                # During battle: linear decrease
+                A_t[i] = max(0, self.A0 - self.beta * time_val)
+                B_t[i] = max(0, self.B0 - self.alpha * time_val)
+            else:
+                # After battle: winner maintains remaining strength, loser stays at zero
+                if winner == 'A':
+                    A_t[i] = remaining_strength
+                    B_t[i] = 0
+                elif winner == 'B':
+                    A_t[i] = 0
+                    B_t[i] = remaining_strength
+                else:  # Draw
+                    A_t[i] = 0
+                    B_t[i] = 0
 
         return A_t, B_t
 
