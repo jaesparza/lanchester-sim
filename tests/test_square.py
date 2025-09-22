@@ -193,6 +193,38 @@ class TestLanchesterSquare(unittest.TestCase):
         winner, _, _ = battle_very_asym.calculate_battle_outcome()
         self.assertEqual(winner, 'A')  # Superior effectiveness should dominate
 
+    def test_arctanh_argument_calculation(self):
+        """Test that arctanh arguments use correct B₀/A₀ ratio formula."""
+        # This test verifies the fix for the arctanh argument bug
+        # Using the user's example: α=0.02, β=0.01, A₀=80, B₀=100
+        battle = LanchesterSquare(A0=80, B0=100, alpha=0.02, beta=0.01)
+        solution = battle.analytical_solution()
+
+        # Manual calculation of expected battle duration
+        ratio = np.sqrt(0.01 / 0.02)  # sqrt(beta/alpha) = sqrt(1/2)
+        arg = ratio * 100 / 80  # Correct arctanh argument: sqrt(β/α) * B₀/A₀
+        expected_duration = (1 / np.sqrt(0.02 * 0.01)) * np.arctanh(arg)
+
+        # Verify the battle duration matches the correct mathematical formula
+        self.assertAlmostEqual(solution['battle_end_time'], expected_duration, places=5,
+                              msg=f"Battle duration should be {expected_duration:.3f}, got {solution['battle_end_time']:.3f}")
+
+        # The fix should produce ~98.5 time units instead of the previous ~56.4
+        self.assertGreater(solution['battle_end_time'], 95.0,
+                          msg="Fixed duration should be much longer than the buggy version")
+
+        # Test symmetric case (B elimination scenario)
+        battle_b_elim = LanchesterSquare(A0=100, B0=80, alpha=0.01, beta=0.02)
+        solution_b = battle_b_elim.analytical_solution()
+
+        # Manual calculation for B elimination
+        ratio_b = np.sqrt(0.01 / 0.02)  # sqrt(alpha/beta)
+        arg_b = ratio_b * 100 / 80  # A₀/B₀ ratio
+        expected_duration_b = (1 / np.sqrt(0.01 * 0.02)) * np.arctanh(arg_b)
+
+        self.assertAlmostEqual(solution_b['battle_end_time'], expected_duration_b, places=5,
+                              msg=f"B elimination duration should be {expected_duration_b:.3f}")
+
     def test_input_validation(self):
         """Test that invalid inputs raise appropriate errors."""
         with self.assertRaises(ValueError):

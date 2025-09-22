@@ -72,11 +72,10 @@ class LanchesterSquare:
         """
         if winner == 'A':
             # Time when B is eliminated
-            if self.beta > 0:
-                # Break down complex arctanh calculation for numerical stability
+            if self.beta > 0 and self.alpha > 0:
+                # Correct arctanh formula: (1/√(αβ)) * arctanh(√(β/α) * B₀/A₀)
                 ratio = np.sqrt(self.beta / self.alpha)
-                denominator = np.sqrt(invariant / self.alpha + self.B0**2)
-                arg = ratio * self.B0 / denominator
+                arg = ratio * self.B0 / self.A0
 
                 # Check for valid arctanh domain [-1, 1]
                 if abs(arg) >= 1.0:
@@ -88,10 +87,9 @@ class LanchesterSquare:
         elif winner == 'B':
             # Time when A is eliminated
             if self.alpha > 0:
-                # Break down complex arctanh calculation for numerical stability
+                # Correct arctanh formula: (1/√(αβ)) * arctanh(√(α/β) * A₀/B₀)
                 ratio = np.sqrt(self.alpha / self.beta)
-                denominator = np.sqrt(-invariant / self.beta + self.A0**2)
-                arg = ratio * self.A0 / denominator
+                arg = ratio * self.A0 / self.B0
 
                 # Check for valid arctanh domain [-1, 1]
                 if abs(arg) >= 1.0:
