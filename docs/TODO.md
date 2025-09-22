@@ -43,10 +43,11 @@ def test_reference_matrix_solution_scenario(self):
 #### Technical Analysis
 
 **Current Implementation (Simplified Educational Model):**
-- **Approach**: Linear trajectories with average attrition rates
-- **Time calculation**: `t_end = B0 / (alpha * (A0 + B0) / 2)`
-- **Trajectories**: Linear decrease preserving `A(t) - B(t) = A₀ - B₀`
-- **Advantages**: Easy to understand, focuses on key insight (linear advantage)
+- **Approach**: Linear trajectories with constant attrition rates: A(t) = A₀ - βt, B(t) = B₀ - αt
+- **Time calculation**: `t_end = min(A₀/β, B₀/α)` (elimination-based)
+- **Invariant**: Preserves `αA(t) - βB(t) = αA₀ - βB₀` (the true Linear Law invariant)
+- **Special case**: The simplified form `A(t) - B(t) = A₀ - B₀` only applies when α=β (equal effectiveness)
+- **Advantages**: Easy to understand, focuses on key insight (weighted Linear Law invariant)
 - **Error**: ~28% underestimation of battle duration
 
 **Exact Mathematical Solution:**
@@ -60,7 +61,7 @@ def test_reference_matrix_solution_scenario(self):
 
 This is a **design choice** rather than a bug. The current implementation prioritizes:
 - **Educational clarity** over mathematical precision
-- **Key insights** (linear advantage preservation) over exact trajectories
+- **Key insights** (weighted Linear Law invariant preservation) over exact trajectories
 - **Simplicity** over complexity
 - **Pedagogical value** for understanding Lanchester principles
 
@@ -73,7 +74,7 @@ This is a **design choice** rather than a bug. The current implementation priori
 
 #### Impact Assessment
 
-- **Functional**: Core Linear Law insight (linear advantage) is preserved correctly
+- **Functional**: Core Linear Law insight (weighted invariant αA₀ - βB₀) is preserved correctly
 - **Educational**: Simplified model aids understanding of Lanchester principles
 - **Research**: May not be suitable for precise mathematical analysis
 - **Testing**: One test case skipped due to this design choice
