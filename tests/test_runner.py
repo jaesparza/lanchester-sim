@@ -54,7 +54,8 @@ def main():
     if result.failures:
         print("\nFAILURES:")
         for test, traceback in result.failures:
-            print(f"- {test}: {traceback.split('AssertionError: ')[-1].split('\\n')[0]}")
+            newline = '\n'
+            print(f"- {test}: {traceback.split('AssertionError: ')[-1].split(newline)[0]}")
 
     if result.errors:
         print("\nERRORS:")
