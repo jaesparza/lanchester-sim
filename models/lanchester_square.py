@@ -355,7 +355,7 @@ class LanchesterSquare:
     def plot_battle(self, solution=None, title="Lanchester Square Law", ax=None):
         """
         Plot the battle dynamics over time.
-        
+
         Parameters:
         solution (dict): Solution dictionary from analytical_solution()
         title (str): Plot title
@@ -363,19 +363,22 @@ class LanchesterSquare:
         """
         if solution is None:
             solution = self.simple_analytical_solution()
-        
+
+        # Remember if we need to auto-show the plot
+        auto_show = ax is None
+
         if ax is None:
             plt.figure(figsize=(10, 6))
             ax = plt.gca()
-        
+
         ax.plot(solution['time'], solution['A'], 'b-', linewidth=2, label=f'Force A (initial: {self.A0})')
         ax.plot(solution['time'], solution['B'], 'r-', linewidth=2, label=f'Force B (initial: {self.B0})')
-        
+
         # Mark battle end
         if 'battle_end_time' in solution:
-            ax.axvline(x=solution['battle_end_time'], color='gray', linestyle='--', alpha=0.7, 
+            ax.axvline(x=solution['battle_end_time'], color='gray', linestyle='--', alpha=0.7,
                        label=f"Battle ends: t={solution['battle_end_time']:.2f}")
-        
+
         ax.set_xlabel('Time')
         ax.set_ylabel('Force Strength')
         ax.set_title(f"{title}\nα={self.alpha}, β={self.beta}")
@@ -383,14 +386,17 @@ class LanchesterSquare:
         ax.grid(True, alpha=0.3)
         ax.set_xlim(0, max(solution['time']))
         ax.set_ylim(0, max(self.A0, self.B0) * 1.1)
-        
-        # Add winner annotation and Square Law insight
-        info_text = f"Winner: {solution['winner']}\nSquare Law Advantage: {self.A0**2:.0f} vs {self.B0**2:.0f}"
-        ax.text(0.02, 0.98, info_text, 
-                transform=ax.transAxes, fontsize=11, 
+
+        # Add winner annotation and correct Square Law advantage calculation
+        # Show actual effective combat power: α×A₀² vs β×B₀²
+        alpha_advantage = self.alpha * self.A0**2
+        beta_advantage = self.beta * self.B0**2
+        info_text = f"Winner: {solution['winner']}\nSquare Law Advantage: α×A₀²={alpha_advantage:.0f} vs β×B₀²={beta_advantage:.0f}"
+        ax.text(0.02, 0.98, info_text,
+                transform=ax.transAxes, fontsize=11,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightblue'))
-        
-        if ax is None:
+
+        if auto_show:
             plt.tight_layout()
             plt.show()
     
