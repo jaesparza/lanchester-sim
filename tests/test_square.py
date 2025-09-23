@@ -383,11 +383,15 @@ class TestLanchesterSquare(unittest.TestCase):
             with self.subTest(case=i):
                 solution = battle.analytical_solution()
 
-                # All times should be finite and positive
-                self.assertTrue(np.isfinite(solution['battle_end_time']),
-                               f"Case {i}: Battle time should be finite")
-                self.assertGreater(solution['battle_end_time'], 0,
-                                  f"Case {i}: Battle time should be positive")
+                # Case 0 and 1 should have finite times, Case 2 (both α=β=0) should be infinite
+                if i == 2:  # Both alpha and beta are zero
+                    self.assertTrue(np.isinf(solution['battle_end_time']) or solution['battle_end_time'] >= 1e10,
+                                   f"Case {i}: Battle with no combat effectiveness should never end")
+                else:
+                    self.assertTrue(np.isfinite(solution['battle_end_time']),
+                                   f"Case {i}: Battle time should be finite")
+                    self.assertGreater(solution['battle_end_time'], 0,
+                                      f"Case {i}: Battle time should be positive")
 
                 # Check that trajectories are reasonable
                 self.assertTrue(np.all(np.isfinite(solution['A'])),
@@ -413,14 +417,14 @@ class TestLanchesterSquare(unittest.TestCase):
         self.assertEqual(solution['winner'], 'Draw')
         self.assertAlmostEqual(solution['invariant'], 0.0, places=10)
 
-        # Verify time calculation is dimensionally consistent
-        # Expected: (B0/(sqrt(alpha)*A0) + A0/(sqrt(beta)*B0)) / 2
-        expected_time_A_elim_B = battle_draw.B0 / (np.sqrt(battle_draw.alpha) * battle_draw.A0)
-        expected_time_B_elim_A = battle_draw.A0 / (np.sqrt(battle_draw.beta) * battle_draw.B0)
+        # Verify time calculation uses corrected dimensional formulas
+        # Expected: (B0/(alpha*A0) + A0/(beta*B0)) / 2
+        expected_time_A_elim_B = battle_draw.B0 / (battle_draw.alpha * battle_draw.A0)
+        expected_time_B_elim_A = battle_draw.A0 / (battle_draw.beta * battle_draw.B0)
         expected_draw_time = (expected_time_A_elim_B + expected_time_B_elim_A) / 2
 
         self.assertAlmostEqual(solution['battle_end_time'], expected_draw_time, places=6,
-                              msg="Draw case should use average of elimination times")
+                              msg="Draw case should use average of corrected elimination times")
 
         # Near-draw case (very close to tie)
         battle_near_draw = LanchesterSquare(A0=100.001, B0=100, alpha=0.01, beta=0.01)
@@ -707,6 +711,113 @@ class TestLanchesterSquare(unittest.TestCase):
             # Should be essentially identical
             self.assertLess(max_rel_A_diff, 1e-6, "Simple solution should match full exact solution")
             self.assertLess(max_rel_B_diff, 1e-6, "Simple solution should match full exact solution")
+
+    def test_degenerate_case_dimensional_consistency_regression(self):
+        """Regression test for dimensional consistency in degenerate cases.
+
+        Previously, the degenerate case formulas had incorrect dimensions:
+        - B0/(√α×A0) had dimensions [√time] instead of [time]
+        - A0/(√β×B0) had dimensions [√time] instead of [time]
+
+        This test verifies the fix uses proper limiting integration formulas:
+        - B0/(α×A0) has correct [time] dimensions
+        - A0/(β×B0) has correct [time] dimensions
+        """
+        # Test β=0 case (A wins)
+        battle_beta_zero = LanchesterSquare(A0=80, B0=100, alpha=0.01, beta=0.0)
+        solution_beta_zero = battle_beta_zero.analytical_solution()
+
+        # Expected time from limiting integration: t = B0/(α×A0)
+        expected_time_beta_zero = 100 / (0.01 * 80)  # = 125.0
+        actual_time_beta_zero = solution_beta_zero['battle_end_time']
+
+        self.assertAlmostEqual(actual_time_beta_zero, expected_time_beta_zero, places=6,
+                              msg="β=0 case should use B0/(α×A0) formula")
+
+        # Test α=0 case (B wins)
+        battle_alpha_zero = LanchesterSquare(A0=100, B0=80, alpha=0.0, beta=0.01)
+        solution_alpha_zero = battle_alpha_zero.analytical_solution()
+
+        # Expected time from limiting integration: t = A0/(β×B0)
+        expected_time_alpha_zero = 100 / (0.01 * 80)  # = 125.0
+        actual_time_alpha_zero = solution_alpha_zero['battle_end_time']
+
+        self.assertAlmostEqual(actual_time_alpha_zero, expected_time_alpha_zero, places=6,
+                              msg="α=0 case should use A0/(β×B0) formula")
+
+    def test_degenerate_case_trajectory_consistency_regression(self):
+        """Test that degenerate case battle end times match trajectory zero-crossings.
+
+        The corrected formulas should give battle end times that exactly match
+        when the force trajectories reach zero, ensuring mathematical consistency.
+        """
+        # β=0 case: A(t) = A0 (constant), B(t) = B0 - α×A0×t
+        battle_beta_zero = LanchesterSquare(A0=80, B0=100, alpha=0.01, beta=0.0)
+        solution_beta_zero = battle_beta_zero.analytical_solution()
+
+        t_end = solution_beta_zero['battle_end_time']
+
+        # At t_end, B should be zero: B(t_end) = B0 - α×A0×t_end = 0
+        B_at_end = 100 - 0.01 * 80 * t_end
+        self.assertAlmostEqual(B_at_end, 0.0, places=10,
+                              msg="B force should be zero at calculated battle end time")
+
+        # A should remain constant throughout
+        A_values = solution_beta_zero['A']
+        self.assertTrue(np.allclose(A_values, 80, rtol=1e-10),
+                       msg="A force should remain constant when β=0")
+
+        # α=0 case: B(t) = B0 (constant), A(t) = A0 - β×B0×t
+        battle_alpha_zero = LanchesterSquare(A0=100, B0=80, alpha=0.0, beta=0.01)
+        solution_alpha_zero = battle_alpha_zero.analytical_solution()
+
+        t_end = solution_alpha_zero['battle_end_time']
+
+        # At t_end, A should be zero: A(t_end) = A0 - β×B0×t_end = 0
+        A_at_end = 100 - 0.01 * 80 * t_end
+        self.assertAlmostEqual(A_at_end, 0.0, places=10,
+                              msg="A force should be zero at calculated battle end time")
+
+        # B should remain constant throughout
+        B_values = solution_alpha_zero['B']
+        self.assertTrue(np.allclose(B_values, 80, rtol=1e-10),
+                       msg="B force should remain constant when α=0")
+
+    def test_draw_case_corrected_averaging_regression(self):
+        """Test that draw cases use corrected dimensional formulas for averaging.
+
+        Previously, draw cases averaged dimensionally inconsistent formulas.
+        This test verifies the fix uses proper [time] dimensional formulas.
+        """
+        # Equal effectiveness draw case
+        battle_draw = LanchesterSquare(A0=100, B0=100, alpha=0.01, beta=0.01)
+        solution_draw = battle_draw.analytical_solution()
+
+        # Expected individual elimination times using corrected formulas
+        time_A_elim_B = 100 / (0.01 * 100)  # B0/(α×A0) = 100.0
+        time_B_elim_A = 100 / (0.01 * 100)  # A0/(β×B0) = 100.0
+        expected_avg = (time_A_elim_B + time_B_elim_A) / 2  # = 100.0
+
+        actual_time = solution_draw['battle_end_time']
+
+        # For equal effectiveness draws, should be close to the averaged corrected times
+        # (Note: exact draw uses cosh/sinh, but the averaging should be reasonable)
+        self.assertAlmostEqual(actual_time, expected_avg, places=1,
+                              msg="Draw case should use corrected averaging approach")
+
+    def test_both_alpha_beta_zero_edge_case_regression(self):
+        """Test the edge case where both α=0 and β=0 (no combat effectiveness).
+
+        This should result in infinite battle time since no force can eliminate the other.
+        """
+        battle_no_combat = LanchesterSquare(A0=100, B0=80, alpha=0.0, beta=0.0)
+        solution_no_combat = battle_no_combat.analytical_solution()
+
+        t_end = solution_no_combat['battle_end_time']
+
+        # Should be infinite or a very large fallback value
+        self.assertTrue(np.isinf(t_end) or t_end >= 1e10,
+                       msg="Battle with no combat effectiveness should never end")
 
 
 if __name__ == '__main__':

@@ -85,9 +85,9 @@ class LanchesterSquare:
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                # For degenerate cases, use limiting form: t ≈ B₀/(√α * A₀) when β→0
+                # For degenerate cases, use proper limiting integration: t = B₀/(α * A₀) when β=0
                 if self.alpha > 0 and self.A0 > 0:
-                    t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)
+                    t_end = self.B0 / (self.alpha * self.A0)
                 else:
                     t_end = 1.0  # Fallback for completely degenerate case
         elif winner == 'B':
@@ -105,21 +105,29 @@ class LanchesterSquare:
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                # For degenerate cases, use limiting form: t ≈ A₀/(√β * B₀) when α→0
+                # For degenerate cases, use proper limiting integration: t = A₀/(β * B₀) when α=0
                 if self.beta > 0 and self.B0 > 0:
-                    t_end = self.A0 / (np.sqrt(self.beta) * self.B0)
+                    t_end = self.A0 / (self.beta * self.B0)
                 else:
                     t_end = 1.0  # Fallback for completely degenerate case
         else:
             # Draw case: both eliminated simultaneously
             if self.alpha > 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
                 # For draws, use the average time it would take each force to eliminate the other
-                # This is dimensionally consistent: time = force / (√effectiveness × opposing_force)
-                time_A_eliminates_B = self.B0 / (np.sqrt(self.alpha) * self.A0)
-                time_B_eliminates_A = self.A0 / (np.sqrt(self.beta) * self.B0)
+                # Using corrected dimensionally consistent formulas: time = force / (effectiveness × opposing_force)
+                time_A_eliminates_B = self.B0 / (self.alpha * self.A0)
+                time_B_eliminates_A = self.A0 / (self.beta * self.B0)
                 t_end = (time_A_eliminates_B + time_B_eliminates_A) / 2
             else:
-                t_end = 1.0  # Fallback for degenerate case
+                # Handle degenerate draw cases
+                if self.alpha == 0 and self.beta == 0:
+                    t_end = float('inf')  # No combat effectiveness - battle never ends
+                elif self.alpha == 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
+                    t_end = self.A0 / (self.beta * self.B0)  # A eliminated, B wins
+                elif self.beta == 0 and self.alpha > 0 and self.A0 > 0 and self.B0 > 0:
+                    t_end = self.B0 / (self.alpha * self.A0)  # B eliminated, A wins
+                else:
+                    t_end = 1.0  # Fallback for completely degenerate case
 
         return t_end
 
