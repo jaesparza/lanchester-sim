@@ -1,0 +1,134 @@
+[
+  {
+    "name": "critical_equal_forces",
+    "inputs": { "A0": 100.0, "B0": 100.0, "alpha": 1.0, "beta": 1.0 },
+    "expected": { "Af": 0.0, "Bf": 0.0, "T": null, "winner": null, "invariant": 0.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 100.0, "B": 100.0, "invariant": 0.0 },
+      { "t": 0.5, "A": 60.653065971263, "B": 60.653065971263, "invariant": 0.0 },
+      { "t": 1.0, "A": 36.787944117144, "B": 36.787944117144, "invariant": 0.0 },
+      { "t": 2.0, "A": 13.533528323661, "B": 13.533528323661, "invariant": 0.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "B_wins_more_numerous_less_effective",
+    "inputs": { "A0": 80.0, "B0": 100.0, "alpha": 1.44, "beta": 1.0 },
+    "expected": { "Af": 0.0, "Bf": 28.0, "T": 1.621591790879, "winner": "B", "invariant": -784.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 80.0, "B": 100.0, "invariant": -784.0 },
+      { "t": 0.1, "A": 70.552674245936, "B": 89.17319650144, "invariant": -784.0 },
+      { "t": 0.5, "A": 41.782752280361, "B": 57.427777937996, "invariant": -784.0 },
+      { "t": 1.0, "A": 19.063999101602, "B": 36.157266612869, "invariant": -784.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "A_wins_small_but_much_more_effective",
+    "inputs": { "A0": 50.0, "B0": 100.0, "alpha": 4.0, "beta": 1.0 },
+    "expected": { "Af": 0.0, "Bf": 0.0, "T": null, "winner": null, "invariant": 0.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 50.0, "B": 100.0, "invariant": 0.0 },
+      { "t": 0.5, "A": 18.393972058572, "B": 36.787944117144, "invariant": 0.0 },
+      { "t": 1.0, "A": 6.766764161831, "B": 13.533528323661, "invariant": 0.0 },
+      { "t": 2.0, "A": 0.915956340123, "B": 1.831912680246, "invariant": 0.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "B_wins_more_effective_coeff",
+    "inputs": { "A0": 100.0, "B0": 80.0, "alpha": 1.0, "beta": 1.44 },
+    "expected": { "Af": 0.0, "Bf": 28.0, "T": 1.621591790879, "winner": "B", "invariant": -784.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 100.0, "B": 80.0, "invariant": -784.0 },
+      { "t": 0.1, "A": 89.17319650144, "B": 70.552674245936, "invariant": -784.0 },
+      { "t": 0.5, "A": 57.427777937996, "B": 41.782752280361, "invariant": -784.0 },
+      { "t": 1.0, "A": 36.157266612869, "B": 19.063999101602, "invariant": -784.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "duplicate_for_invariant_check",
+    "inputs": { "A0": 100.0, "B0": 100.0, "alpha": 1.0, "beta": 1.0 },
+    "expected": { "Af": 0.0, "Bf": 0.0, "T": null, "winner": null, "invariant": 0.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 100.0, "B": 100.0, "invariant": 0.0 },
+      { "t": 1.0, "A": 36.787944117144, "B": 36.787944117144, "invariant": 0.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "A_wins_extreme_coeffs",
+    "inputs": { "A0": 10.0, "B0": 200.0, "alpha": 9.0, "beta": 0.25 },
+    "expected": { "Af": 8.944271909999, "Bf": 0.0, "T": 1.394266518075, "winner": "A", "invariant": 720.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 10.0, "B": 200.0, "invariant": 720.0 },
+      { "t": 0.5, "A": 9.227174563126, "B": 132.808709948712, "invariant": 720.0 },
+      { "t": 1.0, "A": 9.000639616756, "B": 88.214793770741, "invariant": 720.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "degenerate_alpha_zero",
+    "inputs": { "A0": 100.0, "B0": 50.0, "alpha": 0.0, "beta": 1.0 },
+    "expected": { "Af": 0.0, "Bf": 50.0, "T": 2.0, "winner": "B", "invariant": -2500.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 100.0, "B": 50.0, "invariant": -2500.0 },
+      { "t": 0.5, "A": 75.0, "B": 50.0, "invariant": -2500.0 },
+      { "t": 1.0, "A": 50.0, "B": 50.0, "invariant": -2500.0 },
+      { "t": 2.0, "A": 0.0, "B": 50.0, "invariant": -2500.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "degenerate_beta_zero",
+    "inputs": { "A0": 100.0, "B0": 50.0, "alpha": 1.0, "beta": 0.0 },
+    "expected": { "Af": 100.0, "Bf": 0.0, "T": 0.5, "winner": "A", "invariant": 10000.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 100.0, "B": 50.0, "invariant": 10000.0 },
+      { "t": 0.25, "A": 100.0, "B": 25.0, "invariant": 10000.0 },
+      { "t": 0.5, "A": 100.0, "B": 0.0, "invariant": 10000.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "near_critical_beta_slightly_lower",
+    "inputs": { "A0": 100.0, "B0": 100.0, "alpha": 1.0, "beta": 0.99 },
+    "expected": { "Af": 7.071067811865, "Bf": 0.0, "T": 2.651635327336, "winner": "A", "invariant": 100.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 100.0, "B": 100.0, "invariant": 100.0 },
+      { "t": 1.0, "A": 44.033850656538, "B": 40.075512035067, "invariant": 100.0 },
+      { "t": 2.0, "A": 22.210543970514, "B": 15.655913632993, "invariant": 100.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "near_critical_alpha_slightly_lower",
+    "inputs": { "A0": 100.0, "B0": 100.0, "alpha": 0.99, "beta": 1.0 },
+    "expected": { "Af": 0.0, "Bf": 7.071067811865, "T": 2.651635327336, "winner": "B", "invariant": -100.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 100.0, "B": 100.0, "invariant": -100.0 },
+      { "t": 1.0, "A": 40.075512035067, "B": 44.033850656538, "invariant": -100.0 },
+      { "t": 2.0, "A": 15.655913632993, "B": 22.210543970514, "invariant": -100.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "zero_A_initial",
+    "inputs": { "A0": 0.0, "B0": 120.0, "alpha": 1.0, "beta": 1.0 },
+    "expected": { "Af": 0.0, "Bf": 120.0, "T": 0.0, "winner": "B", "invariant": -14400.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 0.0, "B": 120.0, "invariant": -14400.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "zero_B_initial",
+    "inputs": { "A0": 150.0, "B0": 0.0, "alpha": 1.0, "beta": 1.0 },
+    "expected": { "Af": 150.0, "Bf": 0.0, "T": 0.0, "winner": "A", "invariant": 22500.0 },
+    "snapshots": [
+      { "t": 0.0, "A": 150.0, "B": 0.0, "invariant": 22500.0 }
+    ],
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  }
+]

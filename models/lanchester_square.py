@@ -113,11 +113,16 @@ class LanchesterSquare:
         else:
             # Draw case: both eliminated simultaneously
             if self.alpha > 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
-                # For draws, use the average time it would take each force to eliminate the other
-                # Using corrected dimensionally consistent formulas: time = force / (effectiveness × opposing_force)
-                time_A_eliminates_B = self.B0 / (self.alpha * self.A0)
-                time_B_eliminates_A = self.A0 / (self.beta * self.B0)
-                t_end = (time_A_eliminates_B + time_B_eliminates_A) / 2
+                # Check if this is an exact draw (invariant ≈ 0)
+                # For exact draws, the mathematical solution decays exponentially and never reaches zero
+                invariant_tolerance = 1e-10
+                if abs(invariant) < invariant_tolerance:
+                    t_end = float('inf')  # Exact draw: infinite battle time
+                else:
+                    # Near-draw case: use averaged elimination times as approximation
+                    time_A_eliminates_B = self.B0 / (self.alpha * self.A0)
+                    time_B_eliminates_A = self.A0 / (self.beta * self.B0)
+                    t_end = (time_A_eliminates_B + time_B_eliminates_A) / 2
             else:
                 # Handle degenerate draw cases
                 if self.alpha == 0 and self.beta == 0:
@@ -156,7 +161,8 @@ class LanchesterSquare:
             return A_t, B_t
 
         for i, time in enumerate(t):
-            if time >= t_end:
+            # Skip artificial cutoff for infinite battle time (exact draws)
+            if not np.isinf(t_end) and time >= t_end:
                 if winner == 'A':
                     A_t[i] = remaining_strength
                     B_t[i] = 0
@@ -178,22 +184,23 @@ class LanchesterSquare:
                     if winner == 'A':
                         A_t[i] = max(0, min(A_exact, self.A0))
                         B_t[i] = max(0, B_exact)
-                        # Ensure loser goes to zero at t_end
-                        if time >= t_end:
+                        # Ensure loser goes to zero at t_end (skip for infinite draws)
+                        if not np.isinf(t_end) and time >= t_end:
                             A_t[i] = remaining_strength
                             B_t[i] = 0
                     elif winner == 'B':
                         A_t[i] = max(0, A_exact)
                         B_t[i] = max(0, min(B_exact, self.B0))
-                        # Ensure loser goes to zero at t_end
-                        if time >= t_end:
+                        # Ensure loser goes to zero at t_end (skip for infinite draws)
+                        if not np.isinf(t_end) and time >= t_end:
                             A_t[i] = 0
                             B_t[i] = remaining_strength
                     else:
                         # Draw case
                         A_t[i] = max(0, A_exact)
                         B_t[i] = max(0, B_exact)
-                        if time >= t_end:
+                        # For exact draws, keep natural exponential decay (no cutoff)
+                        if not np.isinf(t_end) and time >= t_end:
                             A_t[i] = 0
                             B_t[i] = 0
                 else:
@@ -231,13 +238,18 @@ class LanchesterSquare:
         t_end = self.calculate_battle_end_time(winner, remaining_strength, invariant)
 
         # Check for numerical issues and recalculate if needed
-        if np.isnan(t_end) or np.isinf(t_end) or t_end <= 0:
+        # Note: infinite t_end is valid for exact draws, so don't recalculate
+        if np.isnan(t_end) or t_end <= 0:
             # Recalculate using the corrected method
             t_end = self.calculate_battle_end_time(winner, remaining_strength, invariant)
 
         # Create time array
         if t_max is None:
-            t_max = max(t_end * self.TIME_EXTENSION_FACTOR, t_end + self.TIME_MINIMUM_EXTENSION)
+            if np.isinf(t_end):
+                # For exact draws, use a reasonable finite preview window
+                t_max = 5.0  # Show first 5 time units of exponential decay
+            else:
+                t_max = max(t_end * self.TIME_EXTENSION_FACTOR, t_end + self.TIME_MINIMUM_EXTENSION)
 
         t = np.linspace(0, t_max, self.DEFAULT_TIME_POINTS)
 
