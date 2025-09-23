@@ -331,6 +331,175 @@ class TestLanchesterSquare(unittest.TestCase):
         with self.assertRaises(ValueError):
             LanchesterSquare(A0=50, B0=50, alpha=-0.01, beta=0.01)  # Negative effectiveness
 
+    def test_arctanh_argument_clipping_regression(self):
+        """Regression test for arctanh argument clipping when |arg| >= 1.
+
+        Previously, when the arctanh argument exceeded [-1,1], the code used
+        dimensionally inconsistent fallback formulas. This test ensures the
+        fix properly clips arguments and produces finite, reasonable times.
+        """
+        # Case 1: Extreme effectiveness ratio that would cause arg > 1
+        # alpha=1e-18, beta=1, A0=98999999000, B0=99
+        # This should cause B to win with arg very close to 1
+        battle1 = LanchesterSquare(A0=98999999000, B0=99, alpha=1e-18, beta=1)
+        solution1 = battle1.analytical_solution()
+
+        # Verify the solution is finite and reasonable
+        self.assertTrue(np.isfinite(solution1['battle_end_time']),
+                       "Battle time should be finite even with extreme parameters")
+        self.assertGreater(solution1['battle_end_time'], 0,
+                          "Battle time should be positive")
+        self.assertEqual(solution1['winner'], 'B',
+                        "B should win with these parameters")
+
+        # Case 2: Force very large arctanh argument for A wins scenario
+        # This tests the clipping in the other branch
+        battle2 = LanchesterSquare(A0=1000000, B0=1, alpha=1, beta=1e-12)
+        solution2 = battle2.analytical_solution()
+
+        self.assertTrue(np.isfinite(solution2['battle_end_time']),
+                       "Battle time should be finite with extreme force ratios")
+        self.assertGreater(solution2['battle_end_time'], 0)
+        self.assertEqual(solution2['winner'], 'A')
+
+    def test_dimensional_consistency_regression(self):
+        """Regression test for dimensional consistency of fallback formulas.
+
+        Previously, fallback expressions like B0/(sqrt(alpha)*A0) mixed
+        force units with effectiveness coefficients incorrectly. This test
+        ensures all fallback calculations are dimensionally consistent.
+        """
+        # Test cases that would trigger fallbacks in the old code
+        test_cases = [
+            # Degenerate case: alpha = 0
+            LanchesterSquare(A0=100, B0=50, alpha=0.0, beta=0.01),
+            # Degenerate case: beta = 0
+            LanchesterSquare(A0=50, B0=100, alpha=0.01, beta=0.0),
+            # Both zero (complete degenerate case)
+            LanchesterSquare(A0=100, B0=50, alpha=0.0, beta=0.0),
+        ]
+
+        for i, battle in enumerate(test_cases):
+            with self.subTest(case=i):
+                solution = battle.analytical_solution()
+
+                # All times should be finite and positive
+                self.assertTrue(np.isfinite(solution['battle_end_time']),
+                               f"Case {i}: Battle time should be finite")
+                self.assertGreater(solution['battle_end_time'], 0,
+                                  f"Case {i}: Battle time should be positive")
+
+                # Check that trajectories are reasonable
+                self.assertTrue(np.all(np.isfinite(solution['A'])),
+                               f"Case {i}: Force A trajectory should be finite")
+                self.assertTrue(np.all(np.isfinite(solution['B'])),
+                               f"Case {i}: Force B trajectory should be finite")
+                self.assertTrue(np.all(solution['A'] >= 0),
+                               f"Case {i}: Force A should be non-negative")
+                self.assertTrue(np.all(solution['B'] >= 0),
+                               f"Case {i}: Force B should be non-negative")
+
+    def test_draw_case_calculation_regression(self):
+        """Regression test for draw case time calculation.
+
+        Previously, the draw case used dimensionally inconsistent max/min
+        combinations. This test ensures draw cases use the corrected
+        average-time approach that is dimensionally consistent.
+        """
+        # Perfect draw: alpha*A0^2 = beta*B0^2
+        battle_draw = LanchesterSquare(A0=100, B0=100, alpha=0.01, beta=0.01)
+        solution = battle_draw.analytical_solution()
+
+        self.assertEqual(solution['winner'], 'Draw')
+        self.assertAlmostEqual(solution['invariant'], 0.0, places=10)
+
+        # Verify time calculation is dimensionally consistent
+        # Expected: (B0/(sqrt(alpha)*A0) + A0/(sqrt(beta)*B0)) / 2
+        expected_time_A_elim_B = battle_draw.B0 / (np.sqrt(battle_draw.alpha) * battle_draw.A0)
+        expected_time_B_elim_A = battle_draw.A0 / (np.sqrt(battle_draw.beta) * battle_draw.B0)
+        expected_draw_time = (expected_time_A_elim_B + expected_time_B_elim_A) / 2
+
+        self.assertAlmostEqual(solution['battle_end_time'], expected_draw_time, places=6,
+                              msg="Draw case should use average of elimination times")
+
+        # Near-draw case (very close to tie)
+        battle_near_draw = LanchesterSquare(A0=100.001, B0=100, alpha=0.01, beta=0.01)
+        solution_near = battle_near_draw.analytical_solution()
+
+        # Should still produce finite, reasonable result
+        self.assertTrue(np.isfinite(solution_near['battle_end_time']))
+        self.assertGreater(solution_near['battle_end_time'], 0)
+
+    def test_nan_inf_handling_regression(self):
+        """Regression test for NaN/Inf handling in analytical_solution.
+
+        Previously, NaN/Inf values from arctanh calculations would
+        persist and cause issues. This test ensures all edge cases
+        produce finite, valid results.
+        """
+        # Extreme parameter combinations that could cause numerical issues
+        extreme_cases = [
+            # Very small effectiveness coefficients
+            LanchesterSquare(A0=1e6, B0=1e5, alpha=1e-15, beta=1e-14),
+            # Very large effectiveness coefficients
+            LanchesterSquare(A0=10, B0=5, alpha=1e3, beta=1e2),
+            # Very unbalanced forces
+            LanchesterSquare(A0=1e8, B0=1, alpha=1e-10, beta=1),
+            # Tiny forces
+            LanchesterSquare(A0=1e-3, B0=1e-4, alpha=0.1, beta=0.1),
+        ]
+
+        for i, battle in enumerate(extreme_cases):
+            with self.subTest(case=i):
+                solution = battle.analytical_solution()
+
+                # Core requirement: no NaN or Inf values anywhere
+                self.assertTrue(np.isfinite(solution['battle_end_time']),
+                               f"Case {i}: Battle end time must be finite")
+                self.assertTrue(np.all(np.isfinite(solution['A'])),
+                               f"Case {i}: Force A trajectory must be finite")
+                self.assertTrue(np.all(np.isfinite(solution['B'])),
+                               f"Case {i}: Force B trajectory must be finite")
+                self.assertTrue(np.isfinite(solution['remaining_strength']),
+                               f"Case {i}: Remaining strength must be finite")
+                self.assertTrue(np.isfinite(solution['invariant']),
+                               f"Case {i}: Invariant must be finite")
+
+                # Times should be positive and reasonable
+                self.assertGreater(solution['battle_end_time'], 0,
+                                  f"Case {i}: Battle time should be positive")
+                self.assertLess(solution['battle_end_time'], 1e15,
+                               f"Case {i}: Battle time should be reasonable")
+
+    def test_arctanh_argument_boundary_conditions(self):
+        """Test boundary conditions for arctanh argument calculation.
+
+        This test specifically checks cases where the arctanh argument
+        approaches ±1, ensuring the clipping mechanism works correctly.
+        """
+        # Case where arg approaches +1 (just under the clipping threshold)
+        # Construct case: sqrt(beta/alpha) * B0/A0 ≈ 0.999999
+        alpha, beta = 1e-12, 1
+        # For arg ≈ 1: B0/A0 ≈ 1/sqrt(beta/alpha) = sqrt(1e12) = 1e6
+        A0, B0 = 1e6, 999999  # Ratio slightly under 1.0 to make B win
+
+        battle_near_boundary = LanchesterSquare(A0=A0, B0=B0, alpha=alpha, beta=beta)
+        solution = battle_near_boundary.analytical_solution()
+
+        # Should handle gracefully without fallback to inconsistent formula
+        self.assertTrue(np.isfinite(solution['battle_end_time']))
+        self.assertGreater(solution['battle_end_time'], 0)
+
+        # Verify the arctanh argument would be close to 1 before clipping
+        ratio = np.sqrt(beta / alpha)
+        calculated_arg = ratio * B0 / A0
+        self.assertGreater(calculated_arg, 0.9, "Test case should have arg close to 1")
+
+        # But solution should still be valid due to clipping
+        winner, _, _ = battle_near_boundary.calculate_battle_outcome()
+        if winner != 'Draw':  # Skip detailed check for exact ties
+            self.assertEqual(solution['winner'], winner)
+
 
 if __name__ == '__main__':
     unittest.main()

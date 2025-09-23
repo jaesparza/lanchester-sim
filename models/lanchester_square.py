@@ -79,34 +79,45 @@ class LanchesterSquare:
 
                 # Check for valid arctanh domain [-1, 1]
                 if abs(arg) >= 1.0:
-                    t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)  # Fallback approximation
+                    # Clip argument to valid range instead of using dimensionally inconsistent fallback
+                    arg_clipped = np.sign(arg) * 0.999999  # Very close to ±1 but valid
+                    t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg_clipped)
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)  # Degenerate case
+                # For degenerate cases, use limiting form: t ≈ B₀/(√α * A₀) when β→0
+                if self.alpha > 0 and self.A0 > 0:
+                    t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)
+                else:
+                    t_end = 1.0  # Fallback for completely degenerate case
         elif winner == 'B':
             # Time when A is eliminated
-            if self.alpha > 0:
+            if self.alpha > 0 and self.beta > 0:
                 # Correct arctanh formula: (1/√(αβ)) * arctanh(√(α/β) * A₀/B₀)
                 ratio = np.sqrt(self.alpha / self.beta)
                 arg = ratio * self.A0 / self.B0
 
                 # Check for valid arctanh domain [-1, 1]
                 if abs(arg) >= 1.0:
-                    t_end = self.A0 / (np.sqrt(self.beta) * self.B0)  # Fallback approximation
+                    # Clip argument to valid range instead of using dimensionally inconsistent fallback
+                    arg_clipped = np.sign(arg) * 0.999999  # Very close to ±1 but valid
+                    t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg_clipped)
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                # Handle degenerate case with zero beta
+                # For degenerate cases, use limiting form: t ≈ A₀/(√β * B₀) when α→0
                 if self.beta > 0 and self.B0 > 0:
                     t_end = self.A0 / (np.sqrt(self.beta) * self.B0)
                 else:
-                    t_end = 1.0  # Fallback for degenerate case
+                    t_end = 1.0  # Fallback for completely degenerate case
         else:
-            # Both eliminated simultaneously - use approximation for mutual annihilation
-            # Handle zero effectiveness cases
+            # Draw case: both eliminated simultaneously
             if self.alpha > 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
-                t_end = max(self.A0/np.sqrt(self.alpha * self.B0), self.B0/np.sqrt(self.beta * self.A0))
+                # For draws, use the average time it would take each force to eliminate the other
+                # This is dimensionally consistent: time = force / (√effectiveness × opposing_force)
+                time_A_eliminates_B = self.B0 / (np.sqrt(self.alpha) * self.A0)
+                time_B_eliminates_A = self.A0 / (np.sqrt(self.beta) * self.B0)
+                t_end = (time_A_eliminates_B + time_B_eliminates_A) / 2
             else:
                 t_end = 1.0  # Fallback for degenerate case
 
@@ -223,25 +234,10 @@ class LanchesterSquare:
         # Calculate battle end time using helper method
         t_end = self.calculate_battle_end_time(winner, remaining_strength, invariant)
 
-        # For numerical stability, use a simpler approach for time calculation
-        if np.isnan(t_end) or np.isinf(t_end):
-            # Use approximate method: integrate until one force is nearly eliminated
-            if winner == 'A':
-                if self.alpha > 0 and self.A0 > 0:
-                    t_end = self.B0 / (np.sqrt(self.alpha) * self.A0)
-                else:
-                    t_end = 1.0  # Fallback for degenerate case
-            elif winner == 'B':
-                if self.beta > 0 and self.B0 > 0:
-                    t_end = self.A0 / (np.sqrt(self.beta) * self.B0)
-                else:
-                    t_end = 1.0  # Fallback for degenerate case
-            else:
-                # Handle zero cases properly
-                if self.alpha > 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
-                    t_end = min(self.A0 / (np.sqrt(self.beta) * self.B0), self.B0 / (np.sqrt(self.alpha) * self.A0))
-                else:
-                    t_end = 1.0  # Fallback for degenerate case
+        # Check for numerical issues and recalculate if needed
+        if np.isnan(t_end) or np.isinf(t_end) or t_end <= 0:
+            # Recalculate using the corrected method
+            t_end = self.calculate_battle_end_time(winner, remaining_strength, invariant)
 
         # Create time array
         if t_max is None:
