@@ -622,6 +622,92 @@ class TestLanchesterSquare(unittest.TestCase):
 
                 plt.close(fig)
 
+    def test_exact_trajectory_solutions_regression(self):
+        """Regression test for exact cosh/sinh trajectory solutions.
+
+        Previously, force trajectories used heuristic approximations (quadratic
+        decay curves and invariant recomputation) instead of the exact closed-form
+        solutions to dA/dt = -β*B, dB/dt = -α*A. This test ensures trajectories
+        use the exact hyperbolic solutions throughout.
+        """
+        # Test main case: should use exact cosh/sinh solutions
+        battle = LanchesterSquare(A0=100, B0=80, alpha=0.01, beta=0.01)
+        solution = battle.analytical_solution()
+
+        # Manual calculation of exact closed-form solutions
+        gamma = np.sqrt(battle.alpha * battle.beta)
+        t = solution['time']
+
+        # Exact analytical solutions to dA/dt = -β*B, dB/dt = -α*A
+        A_exact = battle.A0 * np.cosh(gamma * t) - np.sqrt(battle.beta / battle.alpha) * battle.B0 * np.sinh(gamma * t)
+        B_exact = battle.B0 * np.cosh(gamma * t) - np.sqrt(battle.alpha / battle.beta) * battle.A0 * np.sinh(gamma * t)
+
+        # Compare before battle end to avoid boundary effects
+        t_end = solution['battle_end_time']
+        mask = t < t_end * 0.9
+
+        if np.any(mask):
+            A_error = np.abs(solution['A'][mask] - A_exact[mask])
+            B_error = np.abs(solution['B'][mask] - B_exact[mask])
+
+            max_rel_A_error = np.max(A_error) / battle.A0 if battle.A0 > 0 else 0
+            max_rel_B_error = np.max(B_error) / battle.B0 if battle.B0 > 0 else 0
+
+            # Should be exact within numerical precision
+            self.assertLess(max_rel_A_error, 1e-10, "Force A should follow exact cosh/sinh solution")
+            self.assertLess(max_rel_B_error, 1e-10, "Force B should follow exact cosh/sinh solution")
+
+        # Test degenerate case: should use proper limiting solutions, not quadratic decay
+        battle_degen = LanchesterSquare(A0=100, B0=80, alpha=0.0, beta=0.01)
+        solution_degen = battle_degen.analytical_solution()
+
+        # For α=0: dA/dt = -β*B, dB/dt = 0 → A(t) = A₀ - β*B₀*t, B(t) = B₀
+        t_degen = solution_degen['time']
+        t_end_degen = solution_degen['battle_end_time']
+        mask_degen = t_degen < t_end_degen
+
+        if np.any(mask_degen):
+            # Expected exact solution for degenerate case
+            A_expected = battle_degen.A0 - battle_degen.beta * battle_degen.B0 * t_degen[mask_degen]
+            B_expected = np.full_like(t_degen[mask_degen], battle_degen.B0)
+
+            A_error_degen = np.abs(solution_degen['A'][mask_degen] - np.maximum(0, A_expected))
+            B_error_degen = np.abs(solution_degen['B'][mask_degen] - B_expected)
+
+            max_rel_A_error_degen = np.max(A_error_degen) / battle_degen.A0
+            max_rel_B_error_degen = np.max(B_error_degen) / battle_degen.B0
+
+            # Should follow linear decrease, not quadratic
+            self.assertLess(max_rel_A_error_degen, 1e-10, "Degenerate case A should follow linear solution")
+            self.assertLess(max_rel_B_error_degen, 1e-10, "Degenerate case B should remain constant")
+
+        # Test simple_analytical_solution: should also use exact solutions
+        battle_simple = LanchesterSquare(A0=100, B0=60, alpha=0.01, beta=0.01)
+        simple_solution = battle_simple.simple_analytical_solution()
+        full_solution = battle_simple.analytical_solution()
+
+        # Simple and full solutions should be identical (both exact)
+        # Only compare before battle end
+        t_simple = simple_solution['time']
+        t_end_simple = simple_solution['battle_end_time']
+
+        # Find corresponding time points in both solutions
+        mask_simple = t_simple < t_end_simple * 0.9
+        if np.any(mask_simple):
+            # Interpolate full solution to simple solution time points
+            A_full_interp = np.interp(t_simple[mask_simple], full_solution['time'], full_solution['A'])
+            B_full_interp = np.interp(t_simple[mask_simple], full_solution['time'], full_solution['B'])
+
+            A_diff = np.abs(simple_solution['A'][mask_simple] - A_full_interp)
+            B_diff = np.abs(simple_solution['B'][mask_simple] - B_full_interp)
+
+            max_rel_A_diff = np.max(A_diff) / battle_simple.A0
+            max_rel_B_diff = np.max(B_diff) / battle_simple.B0
+
+            # Should be essentially identical
+            self.assertLess(max_rel_A_diff, 1e-6, "Simple solution should match full exact solution")
+            self.assertLess(max_rel_B_diff, 1e-6, "Simple solution should match full exact solution")
+
 
 if __name__ == '__main__':
     unittest.main()

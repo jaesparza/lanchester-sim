@@ -189,33 +189,21 @@ class LanchesterSquare:
                             A_t[i] = 0
                             B_t[i] = 0
                 else:
-                    # Fallback for degenerate cases (alpha = 0 or beta = 0)
-                    time_ratio = time / t_end if t_end > 0 else 0
-
-                    if winner == 'A' and self.alpha > 0:
-                        # B decreases faster, maintaining Square Law relationship
-                        B_remaining = self.B0 * (1 - time_ratio**2)  # Quadratic decay for losing force
-                        # Use invariant: α*A² - β*B² = constant
-                        A_squared = (invariant + self.beta * B_remaining**2) / self.alpha
-                        A_t[i] = max(0, np.sqrt(max(0, A_squared)))
-                        B_t[i] = max(0, B_remaining)
-                    elif winner == 'B' and self.beta > 0:
-                        # A decreases faster, maintaining Square Law relationship
-                        A_remaining = self.A0 * (1 - time_ratio**2)  # Quadratic decay for losing force
-                        # Use invariant: α*A² - β*B² = constant
-                        B_squared = (self.alpha * A_remaining**2 - invariant) / self.beta
-                        A_t[i] = max(0, A_remaining)
-                        B_t[i] = max(0, np.sqrt(max(0, B_squared)))
+                    # Degenerate cases: use proper limiting solutions
+                    if self.alpha == 0 and self.beta > 0:
+                        # Only B can inflict casualties: dA/dt = -β*B, dB/dt = 0
+                        # Solution: A(t) = A₀ - β*B₀*t, B(t) = B₀
+                        A_t[i] = max(0, self.A0 - self.beta * self.B0 * time)
+                        B_t[i] = self.B0
+                    elif self.beta == 0 and self.alpha > 0:
+                        # Only A can inflict casualties: dA/dt = 0, dB/dt = -α*A
+                        # Solution: A(t) = A₀, B(t) = B₀ - α*A₀*t
+                        A_t[i] = self.A0
+                        B_t[i] = max(0, self.B0 - self.alpha * self.A0 * time)
                     else:
-                        # Draw case or degenerate case: both decrease at same rate
-                        if t_end > 0:
-                            decay = 1 - time_ratio**2
-                            A_t[i] = max(0, self.A0 * decay)
-                            B_t[i] = max(0, self.B0 * decay)
-                        else:
-                            # No meaningful combat
-                            A_t[i] = self.A0
-                            B_t[i] = self.B0
+                        # Both effectiveness coefficients are zero: no combat
+                        A_t[i] = self.A0
+                        B_t[i] = self.B0
 
         return A_t, B_t
 
@@ -305,9 +293,12 @@ class LanchesterSquare:
 
         t = np.linspace(0, t_max, self.DEFAULT_TIME_POINTS)
 
-        # Use a simplified trajectory generation for equal effectiveness case
+        # Use exact cosh/sinh solutions even for the "simple" case
         A_t = np.zeros_like(t)
         B_t = np.zeros_like(t)
+
+        # For equal effectiveness, use the same exact solutions as the full analytical method
+        gamma = np.sqrt(self.alpha * self.beta)
 
         for i, time in enumerate(t):
             if time >= t_end:
@@ -321,24 +312,12 @@ class LanchesterSquare:
                     A_t[i] = 0
                     B_t[i] = 0
             else:
-                # Square Law approximation: faster initial casualties, then slowing
-                progress = time / t_end
+                # Use exact hyperbolic solutions (same as analytical_solution)
+                A_exact = self.A0 * np.cosh(gamma * time) - np.sqrt(self.beta / self.alpha) * self.B0 * np.sinh(gamma * time)
+                B_exact = self.B0 * np.cosh(gamma * time) - np.sqrt(self.alpha / self.beta) * self.A0 * np.sinh(gamma * time)
 
-                if winner == 'A':
-                    # B decreases faster (gets eliminated)
-                    B_t[i] = self.B0 * (1 - progress**self.CURVE_EXPONENT)  # Curved decrease
-                    A_t[i] = np.sqrt(max(0, self.A0**2 - (self.B0**2 - B_t[i]**2)))
-                elif winner == 'B':
-                    # A decreases faster (gets eliminated)
-                    A_t[i] = self.A0 * (1 - progress**self.CURVE_EXPONENT)  # Curved decrease
-                    B_t[i] = np.sqrt(max(0, self.B0**2 - (self.A0**2 - A_t[i]**2)))
-                else:
-                    # Both decrease at same rate
-                    A_t[i] = self.A0 * (1 - progress)
-                    B_t[i] = self.B0 * (1 - progress)
-
-                A_t[i] = max(0, A_t[i])
-                B_t[i] = max(0, B_t[i])
+                A_t[i] = max(0, A_exact)
+                B_t[i] = max(0, B_exact)
         
         return {
             'time': t,
