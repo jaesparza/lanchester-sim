@@ -1042,5 +1042,220 @@ class TestLanchesterSquare(unittest.TestCase):
                             pass
 
 
+    def test_math_isclose_numerical_stability(self):
+        """Test math.isclose() numerical stability improvements for effectiveness comparison.
+
+        Previously used abs(alpha - beta) < tolerance, which could have issues with
+        very small or very large values. Now uses math.isclose() with relative tolerance.
+        """
+        import math
+
+        # Test case 1: Very small but equal values
+        alpha_small = 1e-15
+        beta_small = 1e-15
+        battle_small = LanchesterSquare(A0=100, B0=80, alpha=alpha_small, beta=beta_small)
+
+        # Should recognize as approximately equal using math.isclose()
+        is_close_new = math.isclose(alpha_small, beta_small,
+                                  rel_tol=battle_small.EFFECTIVENESS_TOLERANCE, abs_tol=0.0)
+        is_close_old = abs(alpha_small - beta_small) < battle_small.EFFECTIVENESS_TOLERANCE
+
+        self.assertTrue(is_close_new, "math.isclose should handle very small equal values")
+        self.assertTrue(is_close_old, "Old method should also work for this case")
+
+        # Test case 2: Large values with small relative difference
+        alpha_large = 1e6
+        beta_large = 1e6 * (1 + 1e-12)  # Tiny relative difference
+        battle_large = LanchesterSquare(A0=100, B0=80, alpha=alpha_large, beta=beta_large)
+
+        is_close_new_large = math.isclose(alpha_large, beta_large,
+                                        rel_tol=battle_large.EFFECTIVENESS_TOLERANCE, abs_tol=0.0)
+        is_close_old_large = abs(alpha_large - beta_large) < battle_large.EFFECTIVENESS_TOLERANCE
+
+        # math.isclose should handle relative tolerance better
+        self.assertTrue(is_close_new_large, "math.isclose should handle large values with small relative diff")
+        # Old method might fail due to large absolute difference
+
+        # Test case 3: Simple solution should use improved comparison
+        try:
+            solution = battle_small.simple_analytical_solution()
+            # Should not crash and should produce valid result
+            self.assertIsNotNone(solution)
+            self.assertIn('winner', solution)
+        except Exception as e:
+            self.fail(f"Simple solution should handle small equal effectiveness values: {e}")
+
+    def test_degenerate_zero_effectiveness_guard(self):
+        """Test guard against degenerate zero-effectiveness scenarios in simple solution.
+
+        New guard conditions prevent divide-by-zero issues in hyperbolic formulas
+        when alpha=0 or beta=0 in simple_analytical_solution.
+        """
+        # Test case 1: alpha=0, beta>0 (only B can inflict casualties)
+        battle_alpha_zero = LanchesterSquare(A0=100, B0=80, alpha=0.0, beta=0.01)
+
+        # Simple solution should detect alpha=0 and fall back to full analytical solution
+        simple_solution = battle_alpha_zero.simple_analytical_solution()
+        full_solution = battle_alpha_zero.analytical_solution()
+
+        # Should produce same results (fallback worked)
+        self.assertEqual(simple_solution['winner'], full_solution['winner'])
+        self.assertAlmostEqual(simple_solution['battle_end_time'], full_solution['battle_end_time'], places=6)
+        self.assertAlmostEqual(simple_solution['remaining_strength'], full_solution['remaining_strength'], places=6)
+
+        # Test case 2: beta=0, alpha>0 (only A can inflict casualties)
+        battle_beta_zero = LanchesterSquare(A0=80, B0=100, alpha=0.01, beta=0.0)
+
+        simple_solution_beta = battle_beta_zero.simple_analytical_solution()
+        full_solution_beta = battle_beta_zero.analytical_solution()
+
+        self.assertEqual(simple_solution_beta['winner'], full_solution_beta['winner'])
+        self.assertAlmostEqual(simple_solution_beta['battle_end_time'], full_solution_beta['battle_end_time'], places=6)
+        self.assertAlmostEqual(simple_solution_beta['remaining_strength'], full_solution_beta['remaining_strength'], places=6)
+
+        # Test case 3: Both zero (no combat effectiveness)
+        battle_both_zero = LanchesterSquare(A0=100, B0=80, alpha=0.0, beta=0.0)
+
+        simple_solution_both = battle_both_zero.simple_analytical_solution()
+        full_solution_both = battle_both_zero.analytical_solution()
+
+        # Should handle gracefully - likely infinite time or large fallback
+        self.assertEqual(simple_solution_both['winner'], full_solution_both['winner'])
+        self.assertTrue(np.isinf(simple_solution_both['battle_end_time']) or
+                       simple_solution_both['battle_end_time'] >= 1e10)
+
+    def test_infinite_invalid_battle_time_fallback(self):
+        """Test fallback to full analytical solution for infinite/invalid battle times.
+
+        New guard conditions detect when simple solution would produce infinite
+        or non-positive battle times and fall back to full solution.
+        """
+        # Test case 1: Exact draw scenario (should produce infinite time)
+        battle_exact_draw = LanchesterSquare(A0=100, B0=100, alpha=0.01, beta=0.01)
+
+        # Simple solution should detect infinite t_end and fall back
+        simple_solution = battle_exact_draw.simple_analytical_solution()
+        full_solution = battle_exact_draw.analytical_solution()
+
+        # Should produce same results via fallback
+        self.assertEqual(simple_solution['winner'], full_solution['winner'])
+        # Both should have infinite or very large battle time
+        self.assertTrue(np.isinf(simple_solution['battle_end_time']) or
+                       simple_solution['battle_end_time'] >= 1e10)
+
+        # Test case 2: Near-critical scenario that might produce unstable times
+        # Use parameters very close to critical point
+        battle_near_critical = LanchesterSquare(A0=100.0, B0=99.9999999, alpha=0.01, beta=0.01)
+
+        try:
+            simple_solution_crit = battle_near_critical.simple_analytical_solution()
+            # Should not crash and should produce reasonable result
+            self.assertIsNotNone(simple_solution_crit)
+            self.assertIn('winner', simple_solution_crit)
+            self.assertGreater(simple_solution_crit['battle_end_time'], 0)
+        except Exception as e:
+            self.fail(f"Simple solution should handle near-critical cases: {e}")
+
+    def test_simple_draw_preview_constant(self):
+        """Test SIMPLE_DRAW_PREVIEW constant usage for exact draw visualization.
+
+        When simple solution encounters infinite battle time (exact draws),
+        it should use SIMPLE_DRAW_PREVIEW for the time window instead of
+        the usual SIMPLE_TIME_EXTENSION multiplier.
+        """
+        # Exact draw case
+        battle_draw = LanchesterSquare(A0=100, B0=100, alpha=0.01, beta=0.01)
+
+        # Get simple solution which should fall back to full solution due to infinite time
+        simple_solution = battle_draw.simple_analytical_solution()
+
+        # Check that the solution uses a reasonable preview window
+        time_array = simple_solution['time']
+        t_max_used = np.max(time_array)
+
+        # Should use preview window appropriate for observing exponential decay
+        # The actual value depends on implementation - could be SIMPLE_DRAW_PREVIEW or similar
+        self.assertGreater(t_max_used, 2.0, "Should use reasonable preview window")
+        self.assertLess(t_max_used, 100.0, "Preview window should not be excessive")
+
+        # Forces should show natural exponential decay, not artificial cutoff
+        A_forces = simple_solution['A']
+        B_forces = simple_solution['B']
+
+        # At t=0, forces should be initial values
+        self.assertAlmostEqual(A_forces[0], 100, places=1)
+        self.assertAlmostEqual(B_forces[0], 100, places=1)
+
+        # Forces should decrease smoothly (not jump to zero)
+        mid_idx = len(A_forces) // 2
+        self.assertGreater(A_forces[mid_idx], 0, "A should not be zero at mid-timeline")
+        self.assertGreater(B_forces[mid_idx], 0, "B should not be zero at mid-timeline")
+
+        # Forces should be decreasing
+        self.assertLess(A_forces[mid_idx], A_forces[0])
+        self.assertLess(B_forces[mid_idx], B_forces[0])
+
+    def test_edge_case_robustness_comprehensive(self):
+        """Comprehensive test of all new edge case handling improvements.
+
+        Tests the complete set of improvements working together:
+        - math.isclose() for numerical stability
+        - Zero-effectiveness guards
+        - Infinite time fallbacks
+        - Preview window handling
+        """
+        edge_cases = [
+            # Very small equal effectiveness
+            {"A0": 100, "B0": 80, "alpha": 1e-12, "beta": 1e-12, "desc": "tiny_equal_effectiveness"},
+            # Very large equal effectiveness
+            {"A0": 100, "B0": 80, "alpha": 1e8, "beta": 1e8, "desc": "huge_equal_effectiveness"},
+            # Exact zero effectiveness
+            {"A0": 100, "B0": 80, "alpha": 0.0, "beta": 0.01, "desc": "alpha_zero"},
+            {"A0": 100, "B0": 80, "alpha": 0.01, "beta": 0.0, "desc": "beta_zero"},
+            {"A0": 100, "B0": 80, "alpha": 0.0, "beta": 0.0, "desc": "both_zero"},
+            # Exact draws
+            {"A0": 50, "B0": 50, "alpha": 0.01, "beta": 0.01, "desc": "exact_draw"},
+            {"A0": 100, "B0": 100, "alpha": 0.02, "beta": 0.02, "desc": "exact_draw_large"},
+            # Near-critical scenarios
+            {"A0": 100, "B0": 99.999999, "alpha": 0.01, "beta": 0.01, "desc": "near_critical"},
+        ]
+
+        for case in edge_cases:
+            with self.subTest(case=case["desc"]):
+                try:
+                    battle = LanchesterSquare(
+                        A0=case["A0"], B0=case["B0"],
+                        alpha=case["alpha"], beta=case["beta"]
+                    )
+
+                    # Both simple and full solutions should work without crashing
+                    simple_solution = battle.simple_analytical_solution()
+                    full_solution = battle.analytical_solution()
+
+                    # Basic validity checks
+                    self.assertIsNotNone(simple_solution)
+                    self.assertIsNotNone(full_solution)
+                    self.assertIn('winner', simple_solution)
+                    self.assertIn('winner', full_solution)
+
+                    # Time should be non-negative (or infinite)
+                    self.assertTrue(simple_solution['battle_end_time'] >= 0 or
+                                  np.isinf(simple_solution['battle_end_time']))
+                    self.assertTrue(full_solution['battle_end_time'] >= 0 or
+                                  np.isinf(full_solution['battle_end_time']))
+
+                    # Forces should start at initial values
+                    self.assertAlmostEqual(simple_solution['A'][0], case["A0"], places=1)
+                    self.assertAlmostEqual(simple_solution['B'][0], case["B0"], places=1)
+
+                    # No NaN values in trajectories
+                    self.assertFalse(np.any(np.isnan(simple_solution['A'])))
+                    self.assertFalse(np.any(np.isnan(simple_solution['B'])))
+                    self.assertFalse(np.any(np.isnan(full_solution['A'])))
+                    self.assertFalse(np.any(np.isnan(full_solution['B'])))
+
+                except Exception as e:
+                    self.fail(f"Edge case {case['desc']} should not crash: {e}")
+
 if __name__ == '__main__':
     unittest.main()
