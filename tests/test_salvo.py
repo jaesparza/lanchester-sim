@@ -9,6 +9,7 @@ Tests core functionality of discrete round combat simulation:
 """
 
 import unittest
+from unittest import mock
 from models import SalvoCombatModel, Ship
 
 
@@ -245,6 +246,19 @@ class TestSalvoCombatModel(unittest.TestCase):
         probabilities = results['outcome_probabilities']
         total_probability = sum(probabilities.values())
         self.assertAlmostEqual(total_probability, 100.0, places=1)  # Should sum to 100%
+
+    def test_plot_battle_progress_autoshow(self):
+        """Ensure plot auto-show fires when no external axes are provided."""
+        import matplotlib
+        matplotlib.use("Agg", force=True)
+        from matplotlib import pyplot as plt
+
+        model = SalvoCombatModel(force_a=self.force_a, force_b=self.force_b, random_seed=7)
+        model.run_simulation(quiet=True)
+
+        with mock.patch.object(plt, "show") as show_mock:
+            model.plot_battle_progress()
+            self.assertTrue(show_mock.called, "plot_battle_progress should auto-show when ax=None")
 
     def test_phantom_round_prevention_regression(self):
         """Regression test for phantom round bug prevention.

@@ -527,6 +527,7 @@ class SalvoCombatModel:
         force_a_counts = [initial_a] + force_a_counts
         force_b_counts = [initial_b] + force_b_counts
 
+        auto_show = ax is None
         if ax is None:
             plt.figure(figsize=(10, 6))
             ax = plt.gca()
@@ -560,7 +561,7 @@ class SalvoCombatModel:
                 transform=ax.transAxes, fontsize=11,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightcoral'))
 
-        if ax is None:
+        if auto_show:
             plt.tight_layout()
             plt.show()
     
