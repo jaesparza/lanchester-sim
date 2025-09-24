@@ -43,20 +43,40 @@ class LanchesterSquare:
         """
         Calculate battle outcome based on Square Law invariant.
 
+        Handles degenerate cases (α=0 or β=0) before invariant calculation.
+
         Returns:
         tuple: (winner, remaining_strength, invariant)
         """
-        invariant = self.alpha * self.A0**2 - self.beta * self.B0**2
-
-        if invariant > 0:
-            winner = 'A'
-            remaining_strength = np.sqrt(invariant / self.alpha)
-        elif invariant < 0:
+        # Handle degenerate cases first (one-sided combat)
+        if self.alpha == 0 and self.beta > 0:
+            # Only B can inflict casualties → B wins
             winner = 'B'
-            remaining_strength = np.sqrt(-invariant / self.beta)
-        else:
+            remaining_strength = self.B0  # B takes no casualties
+            invariant = -self.beta * self.B0**2  # Negative since B wins
+        elif self.beta == 0 and self.alpha > 0:
+            # Only A can inflict casualties → A wins
+            winner = 'A'
+            remaining_strength = self.A0  # A takes no casualties
+            invariant = self.alpha * self.A0**2   # Positive since A wins
+        elif self.alpha == 0 and self.beta == 0:
+            # No combat effectiveness → Draw (stalemate)
             winner = 'Draw'
-            remaining_strength = 0
+            remaining_strength = max(self.A0, self.B0)  # Convention: report larger force
+            invariant = 0  # No effective combat power
+        else:
+            # Normal case: use Square Law invariant
+            invariant = self.alpha * self.A0**2 - self.beta * self.B0**2
+
+            if invariant > 0:
+                winner = 'A'
+                remaining_strength = np.sqrt(invariant / self.alpha)
+            elif invariant < 0:
+                winner = 'B'
+                remaining_strength = np.sqrt(-invariant / self.beta)
+            else:
+                winner = 'Draw'
+                remaining_strength = 0
 
         return winner, remaining_strength, invariant
 
@@ -80,17 +100,18 @@ class LanchesterSquare:
                 arg = ratio * self.B0 / self.A0
 
                 # Check for valid arctanh domain [-1, 1]
-                if abs(arg) >= 0.99:  # Approaching domain boundary, use limiting case
+                if abs(arg) >= 0.999:  # Very close to domain boundary, use limiting case
                     # Use proper limiting formula instead of clipping: t = B₀/(α×A₀)
                     t_end = self.B0 / (self.alpha * self.A0)
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                # For degenerate cases, use proper limiting integration: t = B₀/(α * A₀) when β=0
-                if self.alpha > 0 and self.A0 > 0:
+                # Degenerate case: β=0 (A wins because B can't damage A)
+                # Use limiting integration: t = B₀/(α * A₀)
+                if self.alpha > 0 and self.A0 > 0 and self.B0 > 0:
                     t_end = self.B0 / (self.alpha * self.A0)
                 else:
-                    t_end = 1.0  # Fallback for completely degenerate case
+                    t_end = 0.0  # Instant victory if B0=0 or A has no combat power
         elif winner == 'B':
             # Time when A is eliminated
             if self.alpha > 0 and self.beta > 0:
@@ -99,17 +120,18 @@ class LanchesterSquare:
                 arg = ratio * self.A0 / self.B0
 
                 # Check for valid arctanh domain [-1, 1]
-                if abs(arg) >= 0.99:  # Approaching domain boundary, use limiting case
+                if abs(arg) >= 0.999:  # Very close to domain boundary, use limiting case
                     # Use proper limiting formula instead of clipping: t = A₀/(β×B₀)
                     t_end = self.A0 / (self.beta * self.B0)
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
-                # For degenerate cases, use proper limiting integration: t = A₀/(β * B₀) when α=0
-                if self.beta > 0 and self.B0 > 0:
+                # Degenerate case: α=0 (B wins because A can't damage B)
+                # Use limiting integration: t = A₀/(β * B₀)
+                if self.beta > 0 and self.B0 > 0 and self.A0 > 0:
                     t_end = self.A0 / (self.beta * self.B0)
                 else:
-                    t_end = 1.0  # Fallback for completely degenerate case
+                    t_end = 0.0  # Instant victory if A0=0 or B has no combat power
         else:
             # Draw case: both eliminated simultaneously
             if self.alpha > 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
@@ -124,15 +146,11 @@ class LanchesterSquare:
                     time_B_eliminates_A = self.A0 / (self.beta * self.B0)
                     t_end = (time_A_eliminates_B + time_B_eliminates_A) / 2
             else:
-                # Handle degenerate draw cases
+                # Handle degenerate draw case (α=β=0)
                 if self.alpha == 0 and self.beta == 0:
                     t_end = float('inf')  # No combat effectiveness - battle never ends
-                elif self.alpha == 0 and self.beta > 0 and self.A0 > 0 and self.B0 > 0:
-                    t_end = self.A0 / (self.beta * self.B0)  # A eliminated, B wins
-                elif self.beta == 0 and self.alpha > 0 and self.A0 > 0 and self.B0 > 0:
-                    t_end = self.B0 / (self.alpha * self.A0)  # B eliminated, A wins
                 else:
-                    t_end = 1.0  # Fallback for completely degenerate case
+                    t_end = 1.0  # Fallback for unexpected degenerate case
 
         return t_end
 
