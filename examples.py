@@ -48,29 +48,62 @@ def square_example():
 
 
 def salvo_example():
-    """Example using Salvo Combat Model"""
+    """Example using Salvo Combat Model with multiple battle scenarios"""
     print("="*50)
-    print("SALVO COMBAT MODEL EXAMPLE")
+    print("SALVO COMBAT MODEL EXAMPLES")
     print("="*50)
 
-    # Create forces
-    force_a = [
+    scenarios = []
+
+    # Scenario 1: Balanced Fleet Engagement
+    print("Scenario 1: Balanced Fleet Engagement")
+    force_a1 = [
         Ship("Destroyer Alpha", offensive_power=8, defensive_power=0.3, staying_power=3),
         Ship("Cruiser Beta", offensive_power=12, defensive_power=0.4, staying_power=5)
     ]
-
-    force_b = [
+    force_b1 = [
         Ship("Frigate Delta", offensive_power=6, defensive_power=0.4, staying_power=2),
         Ship("Destroyer Echo", offensive_power=10, defensive_power=0.35, staying_power=4)
     ]
+    sim1 = SalvoCombatModel(force_a1, force_b1, random_seed=42)
+    result1 = sim1.run_simulation()
+    print(f"  Result: {result1}")
+    scenarios.append(("Balanced Fleet", sim1))
 
-    simulation = SalvoCombatModel(force_a, force_b, random_seed=42)
-    result = simulation.run_simulation()
+    # Scenario 2: Quality vs Quantity (Quantity wins)
+    print("\nScenario 2: Quality vs Quantity")
+    force_a2 = [
+        Ship("Battleship Titan", offensive_power=12, defensive_power=0.5, staying_power=6)
+    ]
+    force_b2 = [
+        Ship("Corvette 1", offensive_power=6, defensive_power=0.3, staying_power=2),
+        Ship("Corvette 2", offensive_power=6, defensive_power=0.3, staying_power=2),
+        Ship("Corvette 3", offensive_power=6, defensive_power=0.3, staying_power=2),
+        Ship("Corvette 4", offensive_power=6, defensive_power=0.3, staying_power=2),
+        Ship("Corvette 5", offensive_power=6, defensive_power=0.3, staying_power=2)
+    ]
+    sim2 = SalvoCombatModel(force_a2, force_b2, random_seed=42)
+    result2 = sim2.run_simulation()
+    print(f"  Result: {result2}")
+    scenarios.append(("Quality vs Quantity", sim2))
 
-    print(f"Result: {result}")
+    # Scenario 3: Extended Battle with Multiple Rounds
+    print("\nScenario 3: Extended Multi-Round Battle")
+    force_a3 = [
+        Ship("Light Cruiser", offensive_power=5, defensive_power=0.6, staying_power=3),
+        Ship("Support Frigate", offensive_power=4, defensive_power=0.5, staying_power=2)
+    ]
+    force_b3 = [
+        Ship("Attack Corvette", offensive_power=6, defensive_power=0.4, staying_power=3),
+        Ship("Defense Patrol", offensive_power=3, defensive_power=0.7, staying_power=4)
+    ]
+    sim3 = SalvoCombatModel(force_a3, force_b3, random_seed=42)
+    result3 = sim3.run_simulation()
+    print(f"  Result: {result3}")
+    scenarios.append(("Extended Battle", sim3))
+
     print()
-
-    return simulation
+    return scenarios
 
 
 def comparison_example():
@@ -113,7 +146,7 @@ def plot_all_battles():
     # Run all examples and collect results
     linear_battle, linear_solution = linear_example()
     square_battle, square_solution = square_example()
-    salvo_simulation = salvo_example()
+    salvo_scenarios = salvo_example()
     comp_linear, comp_linear_result, comp_square, comp_square_result = comparison_example()
 
     # Create a figure with 2x3 subplots
@@ -130,9 +163,35 @@ def plot_all_battles():
                              title="Square Law Example",
                              ax=axes[0, 1])
 
-    # Plot 3: Salvo Combat Model
-    salvo_simulation.plot_battle_progress(title="Salvo Combat Example",
-                                         ax=axes[0, 2])
+    # Plot 3: Salvo Combat Models - Multiple Scenarios
+    # Create a subplot showing all salvo scenarios
+    axes[0, 2].set_title("Salvo Combat Scenarios")
+
+    colors = ['b', 'r', 'g']
+    for i, (scenario_name, simulation) in enumerate(salvo_scenarios):
+        # Plot battle progression for each scenario
+        battle_log = simulation.battle_log
+        if battle_log:
+            rounds = [entry['round'] for entry in battle_log]
+            force_a_counts = [entry['force_a_active'] for entry in battle_log]
+            force_b_counts = [entry['force_b_active'] for entry in battle_log]
+
+            # Add initial state (round 0)
+            rounds.insert(0, 0)
+            force_a_counts.insert(0, len(simulation.force_a))
+            force_b_counts.insert(0, len(simulation.force_b))
+
+            axes[0, 2].plot(rounds, force_a_counts, f'{colors[i]}-',
+                           linewidth=2, alpha=0.8, label=f'{scenario_name} A')
+            axes[0, 2].plot(rounds, force_b_counts, f'{colors[i]}--',
+                           linewidth=2, alpha=0.8, label=f'{scenario_name} B')
+
+    axes[0, 2].set_xlabel('Round')
+    axes[0, 2].set_ylabel('Active Ships')
+    axes[0, 2].legend(fontsize=8, loc='upper right')
+    axes[0, 2].grid(True, alpha=0.3)
+    axes[0, 2].set_xlim(left=0)
+    axes[0, 2].set_ylim(bottom=0)
 
     # Plot 4: Direct Comparison - Normalized Time Scale (0-100% completion)
     # Normalize time to battle completion percentage for fair comparison
@@ -174,7 +233,8 @@ def plot_all_battles():
     axes[1, 2].text(0.1, 0.35, "Key Differences:", fontsize=11, weight='bold')
     axes[1, 2].text(0.1, 0.25, "• Linear: hand-to-hand combat", fontsize=9)
     axes[1, 2].text(0.1, 0.2, "• Square: modern ranged combat", fontsize=9)
-    axes[1, 2].text(0.1, 0.15, "• Salvo: discrete missile/naval", fontsize=9)
+    axes[1, 2].text(0.1, 0.15, "• Salvo: 3 scenarios demonstrate", fontsize=9)
+    axes[1, 2].text(0.1, 0.1, "  different tactical situations", fontsize=9)
     axes[1, 2].text(0.1, 0.05, "Time scales normalized for comparison", fontsize=8, style='italic')
     axes[1, 2].set_xlim(0, 1)
     axes[1, 2].set_ylim(0, 1)
