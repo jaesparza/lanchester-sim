@@ -289,30 +289,26 @@ class SalvoCombatModel:
                 estimated_survivors_a = 0
                 estimated_survivors_b = max(1, int(len(self.force_b) * (advantage_ratio - 1) / advantage_ratio))
             else:
-                # Equal offensive power case - check if attrition is meaningful
-                if effective_damage_a < 1.0 and effective_damage_b < 1.0:
-                    # Low damage scenario - likely to result in survivors on both sides
-                    if not quiet:
-                        print(f"Equal forces with low attrition (effective damage: {effective_damage_a:.3f})")
-                        print("Falling back to full simulation for accurate draw resolution...")
+                # Equal offensive power case - always fall back to full simulation
+                # Simplified logic cannot reliably predict outcomes for evenly matched forces
+                # due to battle dynamics, randomness, and damage distribution effects
+                if not quiet:
+                    print(f"Equal offensive power detected (A: {total_a_offensive:.1f}, B: {total_b_offensive:.1f})")
+                    print("Falling back to full simulation for accurate equal-power resolution...")
 
-                    # Run full simulation and return formatted result
-                    outcome = self.run_simulation(max_rounds=max_rounds, quiet=quiet)
-                    stats = self.get_battle_statistics()
+                # Run full simulation and return formatted result
+                outcome = self.run_simulation(max_rounds=max_rounds, quiet=quiet)
+                stats = self.get_battle_statistics()
 
-                    return {
-                        'outcome': outcome,
-                        'rounds': stats['rounds'],
-                        'force_a_survivors': stats['force_a_survivors'],
-                        'force_b_survivors': stats['force_b_survivors'],
-                        'method': 'full_simulation',
-                        'defensive_similarity': defensive_similarity,
-                        'reason': 'equal_power_low_attrition_fallback'
-                    }
-                else:
-                    winner = "Mutual Annihilation"
-                    estimated_survivors_a = 0
-                    estimated_survivors_b = 0
+                return {
+                    'outcome': outcome,
+                    'rounds': stats['rounds'],
+                    'force_a_survivors': stats['force_a_survivors'],
+                    'force_b_survivors': stats['force_b_survivors'],
+                    'method': 'full_simulation',
+                    'defensive_similarity': defensive_similarity,
+                    'reason': 'equal_power_fallback'
+                }
 
             if not quiet:
                 print(f"Simplified Analysis:")

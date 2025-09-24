@@ -386,11 +386,11 @@ class TestSalvoCombatModel(unittest.TestCase):
         model_low = SalvoCombatModel(low_power_a, low_power_b, random_seed=42)
         result_low = model_low.simple_simulation(quiet=True)
 
-        # Should fall back to full simulation due to low effective damage
+        # Should fall back to full simulation due to equal power (which includes low attrition)
         self.assertEqual(result_low['method'], 'full_simulation',
-                        msg="Low attrition case should fall back to full simulation")
-        self.assertIn('low_attrition', result_low.get('reason', ''),
-                     msg="Should indicate low attrition as fallback reason")
+                        msg="Equal power case should fall back to full simulation")
+        self.assertEqual(result_low.get('reason', ''), 'equal_power_fallback',
+                        msg="Should indicate equal power as fallback reason")
 
         # Should not result in mutual annihilation with zero survivors
         self.assertNotEqual(result_low['outcome'], 'Mutual Annihilation',
@@ -400,16 +400,19 @@ class TestSalvoCombatModel(unittest.TestCase):
         self.assertGreater(result_low['force_a_survivors'] + result_low['force_b_survivors'], 0,
                           msg="Low attrition case should have survivors")
 
-        # Test case 2: Higher offensive power - should use simplified path
+        # Test case 2: Higher offensive power but still equal - should fall back
+        # Even high damage equal power cases fall back due to unpredictable battle dynamics
         high_power_a = [Ship("High A", offensive_power=5, defensive_power=0.3, staying_power=2)]
         high_power_b = [Ship("High B", offensive_power=5, defensive_power=0.3, staying_power=2)]
 
         model_high = SalvoCombatModel(high_power_a, high_power_b, random_seed=42)
         result_high = model_high.simple_simulation(quiet=True)
 
-        # Should use simplified method for meaningful attrition
-        self.assertEqual(result_high.get('method', 'simplified'), 'simplified',
-                        msg="High damage case should use simplified method")
+        # Should fall back to full simulation due to equal power policy
+        self.assertEqual(result_high['method'], 'full_simulation',
+                        msg="Equal power case should always fall back to full simulation")
+        self.assertEqual(result_high.get('reason', ''), 'equal_power_fallback',
+                        msg="Should indicate equal power as fallback reason")
 
         # Test case 3: Boundary case - zero defensive power
         boundary_a = [Ship("Boundary A", offensive_power=0.5, defensive_power=0.0, staying_power=3)]
@@ -418,13 +421,15 @@ class TestSalvoCombatModel(unittest.TestCase):
         model_boundary = SalvoCombatModel(boundary_a, boundary_b, random_seed=42)
         result_boundary = model_boundary.simple_simulation(quiet=True)
 
-        # With effective_damage = 0.5 and equal forces, should fall back for equal power low attrition
+        # With equal forces, should fall back due to equal power policy
         self.assertEqual(result_boundary['method'], 'full_simulation',
                         msg="Equal power boundary case should fall back to full simulation")
+        self.assertEqual(result_boundary.get('reason', ''), 'equal_power_fallback',
+                        msg="Should use equal power fallback for equal offensive power")
 
-        # Test case 4: Verify the thresholds work correctly
-        # effective_damage_a = 0.5 * (1 - 0.3) = 0.35 < 1.0 (triggers equal power fallback)
+        # Test case 4: Verify the general low attrition fallback still works
         # effective_damage_a = 0.1 * (1 - 0.3) = 0.07 < 0.1 (triggers general fallback)
+        # This should bypass the equal power check and use the general low attrition fallback
 
         very_low_a = [Ship("Very Low A", offensive_power=0.1, defensive_power=0.3, staying_power=2)]
         very_low_b = [Ship("Very Low B", offensive_power=0.1, defensive_power=0.3, staying_power=2)]
