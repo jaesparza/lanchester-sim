@@ -302,6 +302,59 @@ def test_physical_realism():
     print(f"Physical realism check: {len(realism_issues)} issues found")
     return realism_issues
 
+
+def test_offensive_ratio_calculations():
+    """Test that offensive ratios are calculated correctly for all force sizes."""
+    print("="*70)
+    print("TESTING OFFENSIVE RATIO CALCULATIONS")
+    print("="*70)
+
+    ratio_issues = []
+
+    print("1. Testing symmetric forces...")
+    # Test symmetric forces with various power levels
+    test_cases = [
+        (0.5, 0.5, 1.0),  # The original bug case
+        (1.0, 1.0, 1.0),  # Standard symmetric
+        (2.5, 2.5, 1.0),  # Larger symmetric
+        (10, 5, 2.0),     # 2:1 ratio
+        (3, 1.5, 2.0),    # 2:1 ratio with decimals
+        (1, 0, float('inf')),  # Division by zero case
+    ]
+
+    for a_power, b_power, expected_ratio in test_cases:
+        ship_a = Ship("Ship A", offensive_power=a_power, defensive_power=0.3, staying_power=1)
+        ship_b = Ship("Ship B", offensive_power=b_power, defensive_power=0.3, staying_power=1)
+
+        battle = SalvoCombatModel([ship_a], [ship_b])
+        stats = battle.get_battle_statistics()
+
+        actual_ratio = stats['offensive_ratio']
+
+        # Handle infinity case
+        if expected_ratio == float('inf'):
+            if not (actual_ratio == float('inf')):
+                ratio_issues.append(f"Division by zero case: expected inf, got {actual_ratio}")
+        else:
+            if abs(actual_ratio - expected_ratio) > 1e-6:
+                ratio_issues.append(f"Ratio mismatch for {a_power}:{b_power} - expected {expected_ratio}, got {actual_ratio}")
+
+    print("2. Testing simple_simulation advantage ratios...")
+    # Test the advantage ratio calculations in simple_simulation
+    ship_a = Ship("Strong", offensive_power=2.0, defensive_power=0.3, staying_power=2)
+    ship_b = Ship("Weak", offensive_power=1.0, defensive_power=0.3, staying_power=2)
+
+    battle = SalvoCombatModel([ship_a], [ship_b])
+    result = battle.simple_simulation(quiet=True)
+
+    # Should show Force A victory with 2:1 advantage
+    if result['outcome'] != "Force A Victory":
+        ratio_issues.append(f"Simple simulation failed to predict correct winner for 2:1 advantage")
+
+    print(f"Offensive ratio tests completed. Issues found: {len(ratio_issues)}")
+    return ratio_issues
+
+
 def run_mathematical_correctness_analysis():
     """Run all mathematical correctness tests."""
     print("LANCHESTER SIMULATION CODEBASE - MATHEMATICAL CORRECTNESS ANALYSIS")
@@ -314,6 +367,7 @@ def run_mathematical_correctness_analysis():
     all_issues.extend(test_boundary_conditions())
     all_issues.extend(test_analytical_vs_numerical_solutions())
     all_issues.extend(test_physical_realism())
+    all_issues.extend(test_offensive_ratio_calculations())
 
     print("\n" + "="*80)
     print("MATHEMATICAL CORRECTNESS SUMMARY")
