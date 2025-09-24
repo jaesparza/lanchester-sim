@@ -200,7 +200,7 @@ class SalvoCombatModel:
             'force_b_effectiveness': effectiveness_b,
             'total_a_offensive': effectiveness_a['total_offensive'],
             'total_b_offensive': effectiveness_b['total_offensive'],
-            'offensive_ratio': effectiveness_a['total_offensive'] / max(effectiveness_b['total_offensive'], 1),
+            'offensive_ratio': effectiveness_a['total_offensive'] / effectiveness_b['total_offensive'] if effectiveness_b['total_offensive'] > 0 else float('inf'),
             'surviving_ships_a': operational_a,
             'surviving_ships_b': operational_b
         }
@@ -280,12 +280,12 @@ class SalvoCombatModel:
             if total_a_offensive > total_b_offensive:
                 winner = "Force A Victory"
                 # Estimate survivors based on offensive advantage
-                advantage_ratio = total_a_offensive / max(total_b_offensive, 1)
+                advantage_ratio = total_a_offensive / total_b_offensive if total_b_offensive > 0 else float('inf')
                 estimated_survivors_a = max(1, int(len(self.force_a) * (advantage_ratio - 1) / advantage_ratio))
                 estimated_survivors_b = 0
             elif total_b_offensive > total_a_offensive:
                 winner = "Force B Victory"
-                advantage_ratio = total_b_offensive / max(total_a_offensive, 1)
+                advantage_ratio = total_b_offensive / total_a_offensive if total_a_offensive > 0 else float('inf')
                 estimated_survivors_a = 0
                 estimated_survivors_b = max(1, int(len(self.force_b) * (advantage_ratio - 1) / advantage_ratio))
             else:
