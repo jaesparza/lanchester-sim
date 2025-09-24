@@ -196,6 +196,7 @@ class LanchesterLinear:
         if solution is None:
             solution = self.simple_analytical_solution()
 
+        should_show = ax is None
         if ax is None:
             plt.figure(figsize=(10, 6))
             ax = plt.gca()
@@ -223,7 +224,7 @@ class LanchesterLinear:
                 transform=ax.transAxes, fontsize=11,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightgreen'))
 
-        if ax is None:
+        if should_show:
             plt.tight_layout()
             plt.show()
 
