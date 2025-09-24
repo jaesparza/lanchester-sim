@@ -73,7 +73,7 @@ class SalvoCombatModel:
         self.round_number = 0
         self.battle_log = []
         
-        if random_seed:
+        if random_seed is not None:
             random.seed(random_seed)
             np.random.seed(random_seed)
 
