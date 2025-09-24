@@ -456,6 +456,55 @@ class TestSalvoCombatModel(unittest.TestCase):
         self.assertEqual(result_strong['outcome'], 'Force A Victory',
                         msg="Stronger force A should win in simplified calculation")
 
+    def test_offensive_ratio_calculations(self):
+        """Test that offensive ratios are calculated correctly for various force compositions."""
+        # Test case 1: Symmetric forces should have ratio of 1.0
+        symmetric_cases = [
+            (0.5, 0.5),  # Original bug case
+            (1.0, 1.0),  # Standard case
+            (2.5, 2.5),  # Larger symmetric forces
+        ]
+
+        for a_power, b_power in symmetric_cases:
+            with self.subTest(a_power=a_power, b_power=b_power):
+                ship_a = Ship("Ship A", offensive_power=a_power, defensive_power=0.3, staying_power=1)
+                ship_b = Ship("Ship B", offensive_power=b_power, defensive_power=0.3, staying_power=1)
+
+                model = SalvoCombatModel([ship_a], [ship_b])
+                stats = model.get_battle_statistics()
+
+                self.assertAlmostEqual(stats['offensive_ratio'], 1.0, places=6,
+                                     msg=f"Symmetric forces {a_power}:{b_power} should have ratio 1.0")
+
+        # Test case 2: Asymmetric ratios
+        asymmetric_cases = [
+            (2.0, 1.0, 2.0),  # 2:1 ratio
+            (3.0, 1.5, 2.0),  # 2:1 ratio with decimals
+            (10.0, 5.0, 2.0), # 2:1 ratio larger forces
+            (1.5, 3.0, 0.5),  # 1:2 ratio (B stronger)
+        ]
+
+        for a_power, b_power, expected_ratio in asymmetric_cases:
+            with self.subTest(a_power=a_power, b_power=b_power, expected=expected_ratio):
+                ship_a = Ship("Ship A", offensive_power=a_power, defensive_power=0.3, staying_power=1)
+                ship_b = Ship("Ship B", offensive_power=b_power, defensive_power=0.3, staying_power=1)
+
+                model = SalvoCombatModel([ship_a], [ship_b])
+                stats = model.get_battle_statistics()
+
+                self.assertAlmostEqual(stats['offensive_ratio'], expected_ratio, places=6,
+                                     msg=f"Forces {a_power}:{b_power} should have ratio {expected_ratio}")
+
+        # Test case 3: Division by zero case
+        ship_a = Ship("Ship A", offensive_power=1.0, defensive_power=0.3, staying_power=1)
+        ship_b = Ship("Ship B", offensive_power=0.0, defensive_power=0.3, staying_power=1)
+
+        model = SalvoCombatModel([ship_a], [ship_b])
+        stats = model.get_battle_statistics()
+
+        self.assertEqual(stats['offensive_ratio'], float('inf'),
+                        msg="Division by zero should return infinity")
+
 
 if __name__ == '__main__':
     unittest.main()
