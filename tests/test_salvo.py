@@ -505,6 +505,32 @@ class TestSalvoCombatModel(unittest.TestCase):
         self.assertEqual(stats['offensive_ratio'], float('inf'),
                         msg="Division by zero should return infinity")
 
+    def test_simple_simulation_offensive_ratio_precision(self):
+        """Simplified path should report accurate offensive ratios for fractional forces."""
+        force_a = [Ship("Light A", offensive_power=0.6, defensive_power=0.2, staying_power=2)]
+        force_b = [Ship("Light B", offensive_power=0.3, defensive_power=0.25, staying_power=2)]
+
+        model = SalvoCombatModel(force_a, force_b)
+        result = model.simple_simulation(quiet=True)
+
+        self.assertEqual(result['method'], 'simplified',
+                         msg="Scenario should remain on simplified path")
+        self.assertAlmostEqual(result['offensive_ratio'], 2.0, places=6,
+                               msg="Offensive ratio should match actual force ratio")
+
+    def test_fractional_offensive_power_fires_probabilistic_missile(self):
+        """Fractional offensive power should probabilistically add an extra missile."""
+        attackers = [Ship("Fractional", offensive_power=0.5, defensive_power=0.0, staying_power=1)]
+        defenders = [Ship("Target", offensive_power=0.0, defensive_power=0.0, staying_power=1)]
+
+        model = SalvoCombatModel(attackers, defenders, random_seed=1)
+        missiles, distribution = model.calculate_salvo_effectiveness(model.force_a, model.force_b)
+
+        self.assertEqual(missiles, 1,
+                         msg="Fractional offensive power should fire one missile with seeded RNG")
+        self.assertEqual(distribution, [1],
+                         msg="Single defender should receive the single missile")
+
 
 if __name__ == '__main__':
     unittest.main()

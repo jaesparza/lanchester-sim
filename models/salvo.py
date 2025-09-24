@@ -327,7 +327,11 @@ class SalvoCombatModel:
                 'force_b_survivors': estimated_survivors_b,
                 'total_a_offensive': total_a_offensive,
                 'total_b_offensive': total_b_offensive,
-                'offensive_ratio': total_a_offensive / max(total_b_offensive, 1),
+                'offensive_ratio': (
+                    total_a_offensive / total_b_offensive
+                    if total_b_offensive > 0
+                    else (float('inf') if total_a_offensive > 0 else float('nan'))
+                ),
                 'method': 'simplified',
                 'defensive_similarity': defensive_similarity
             }
@@ -360,7 +364,14 @@ class SalvoCombatModel:
         
         # Calculate missiles getting through defense
         # Using probabilistic model: each missile has chance of being intercepted
-        missiles_fired = int(total_offensive)
+        base_missiles = int(total_offensive)
+        fractional_missile = total_offensive - base_missiles
+        
+        missiles_fired = base_missiles
+        if fractional_missile > 0:
+            if random.random() < fractional_missile:
+                missiles_fired += 1
+        
         missiles_through = 0
         
         for _ in range(missiles_fired):

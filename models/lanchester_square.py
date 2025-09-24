@@ -174,8 +174,9 @@ class LanchesterSquare:
         gamma = np.sqrt(alpha_ld * beta_ld)
 
         # Threshold for switching to limiting behavior to prevent overflow and unphysical values
-        # When gamma*t > 1.0, exponential terms start to cause numerical instability
-        OVERFLOW_THRESHOLD = 1.0
+        # Mathematical battle end occurs around gamma*t ≈ 1.1, so threshold should be slightly higher
+        # to allow natural transitions while preventing numerical instability at larger values
+        OVERFLOW_THRESHOLD = 1.5
 
         # Initialize output arrays
         A_exact = np.zeros_like(t, dtype=float)
@@ -185,6 +186,11 @@ class LanchesterSquare:
         gamma_t = gamma * t_ld
         safe_mask = gamma_t <= OVERFLOW_THRESHOLD
         overflow_mask = gamma_t > OVERFLOW_THRESHOLD
+
+        # Always use safe computation for t=0 to ensure correct initial values
+        t_zero_mask = t_ld == 0
+        safe_mask = safe_mask | t_zero_mask
+        overflow_mask = overflow_mask & (~t_zero_mask)
 
         # Safe computation for moderate gamma*t values
         if np.any(safe_mask):
@@ -286,8 +292,8 @@ class LanchesterSquare:
                 exact_B = np.zeros_like(t)
 
         for i, time in enumerate(t):
-            # Skip artificial cutoff for infinite battle time (exact draws)
-            if not np.isinf(t_end) and time >= t_end:
+            # Post-battle: maintain final values for times strictly after battle end
+            if not np.isinf(t_end) and time > t_end:
                 if winner == 'A':
                     A_t[i] = remaining_strength
                     B_t[i] = 0
@@ -304,29 +310,34 @@ class LanchesterSquare:
                     A_exact = exact_A[i]
                     B_exact = exact_B[i]
 
-                    # Clamp trajectories to proper final values at t_end
+                    # Use exact hyperbolic solution, clamped to physical bounds
                     if winner == 'A':
                         A_t[i] = max(0, min(A_exact, self.A0))
                         B_t[i] = max(0, B_exact)
-                        # Ensure loser goes to zero at t_end (skip for infinite draws)
-                        if not np.isinf(t_end) and time >= t_end:
-                            A_t[i] = remaining_strength
-                            B_t[i] = 0
                     elif winner == 'B':
                         A_t[i] = max(0, A_exact)
                         B_t[i] = max(0, min(B_exact, self.B0))
-                        # Ensure loser goes to zero at t_end (skip for infinite draws)
-                        if not np.isinf(t_end) and time >= t_end:
-                            A_t[i] = 0
-                            B_t[i] = remaining_strength
                     else:
-                        # Draw case
+                        # Draw case - use natural solution
                         A_t[i] = max(0, A_exact)
                         B_t[i] = max(0, B_exact)
-                        # For exact draws, keep natural exponential decay (no cutoff)
-                        if not np.isinf(t_end) and time >= t_end:
-                            A_t[i] = 0
-                            B_t[i] = 0
+
+                    # At exactly t_end, ensure we reach the correct final values
+                    # Only apply final values if we're actually close to battle end AND after t=0
+                    if not np.isinf(t_end):
+                        time_step = (t[1] - t[0]) if len(t) > 1 else 1.0
+                        close_to_end = abs(time - t_end) < time_step * 0.1  # Stricter threshold
+                        not_at_start = time > time_step * 0.1  # Don't override t=0 values
+                        if close_to_end and not_at_start:
+                            if winner == 'A':
+                                A_t[i] = remaining_strength
+                                B_t[i] = 0
+                            elif winner == 'B':
+                                A_t[i] = 0
+                                B_t[i] = remaining_strength
+                            else:
+                                A_t[i] = 0
+                                B_t[i] = 0
                 else:
                     # Degenerate cases: use proper limiting solutions
                     if self.alpha == 0 and self.beta > 0:
@@ -482,7 +493,8 @@ class LanchesterSquare:
                 exact_B = np.zeros_like(t)
 
         for i, time in enumerate(t):
-            if time >= t_end:
+            if time > t_end:
+                # Post-battle: maintain final values without discontinuous jump
                 if winner == 'A':
                     A_t[i] = remaining_strength
                     B_t[i] = 0
@@ -493,12 +505,28 @@ class LanchesterSquare:
                     A_t[i] = 0
                     B_t[i] = 0
             else:
-                # Use numerically stable hyperbolic solutions (same as analytical_solution)
+                # Use numerically stable hyperbolic solutions up to and including t_end
                 A_exact = exact_A[i]
                 B_exact = exact_B[i]
 
                 A_t[i] = max(0, A_exact)
                 B_t[i] = max(0, B_exact)
+
+                # At exactly t_end, ensure we reach the correct final values
+                # Only apply final values if we're actually close to the battle end AND after t=0
+                time_step = (t[1] - t[0]) if len(t) > 1 else 1.0
+                close_to_end = abs(time - t_end) < time_step * 0.1  # Much stricter threshold
+                not_at_start = time > time_step * 0.1  # Don't override t=0 values
+                if close_to_end and not_at_start:
+                    if winner == 'A':
+                        A_t[i] = remaining_strength
+                        B_t[i] = 0
+                    elif winner == 'B':
+                        A_t[i] = 0
+                        B_t[i] = remaining_strength
+                    else:
+                        A_t[i] = 0
+                        B_t[i] = 0
 
         return {
             'time': t,
