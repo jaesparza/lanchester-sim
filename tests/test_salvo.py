@@ -313,6 +313,60 @@ class TestSalvoCombatModel(unittest.TestCase):
             self.assertEqual(len(simulation3.battle_log), 1,
                            "One round should be logged when combat occurs")
 
+    def test_empty_force_handling_fix_regression(self):
+        """Regression test for empty force handling fix.
+
+        Previously, empty force lists would return "Mutual Annihilation" which
+        is misleading when there was no battle to begin with.
+
+        The fix properly classifies empty initial forces with appropriate outcomes.
+        """
+
+        # Test case 1: Both forces empty → No Battle
+        empty_model = SalvoCombatModel([], [])
+        result = empty_model.run_simulation(quiet=True)
+        stats = empty_model.get_battle_statistics()
+
+        self.assertEqual(result, "No Battle - Both Forces Empty",
+                        msg="Empty forces should result in 'No Battle', not 'Mutual Annihilation'")
+        self.assertEqual(stats['rounds'], 0,
+                        msg="No battle should mean 0 rounds")
+        self.assertEqual(stats['force_a_survivors'], 0)
+        self.assertEqual(stats['force_b_survivors'], 0)
+
+        # Test case 2: Force A empty → Force B wins
+        normal_ships = [Ship('Winner', offensive_power=10, defensive_power=0.3, staying_power=2)]
+        empty_vs_normal = SalvoCombatModel([], normal_ships)
+        result = empty_vs_normal.run_simulation(quiet=True)
+
+        self.assertEqual(result, "Force B Victory - Force A Empty",
+                        msg="Force A empty should result in Force B victory")
+        self.assertEqual(empty_vs_normal.round_number, 0,
+                        msg="Should not execute any combat rounds")
+
+        # Test case 3: Force B empty → Force A wins
+        normal_vs_empty = SalvoCombatModel(normal_ships, [])
+        result = normal_vs_empty.run_simulation(quiet=True)
+
+        self.assertEqual(result, "Force A Victory - Force B Empty",
+                        msg="Force B empty should result in Force A victory")
+        self.assertEqual(normal_vs_empty.round_number, 0,
+                        msg="Should not execute any combat rounds")
+
+        # Test case 4: Verify normal battle still works correctly
+        normal_a = [Ship('Ship A', offensive_power=10, defensive_power=0.3, staying_power=1)]
+        normal_b = [Ship('Ship B', offensive_power=8, defensive_power=0.2, staying_power=1)]
+        normal_battle = SalvoCombatModel(normal_a, normal_b, random_seed=42)
+        result = normal_battle.run_simulation(quiet=True)
+
+        # Should be a proper battle outcome, not empty force outcome
+        self.assertNotIn("Empty", result,
+                        msg="Normal forces should not trigger empty force outcomes")
+        self.assertIn("Victory", result,
+                     msg="Normal battle should result in victory")
+        self.assertGreater(normal_battle.round_number, 0,
+                          msg="Normal battle should execute at least one round")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -162,6 +162,15 @@ class SalvoCombatModel:
         """
         operational_a, operational_b = self.calculate_operational_forces()
 
+        # Handle empty initial force scenarios
+        if not self.force_a and not self.force_b:
+            return "No Battle - Both Forces Empty"
+        elif not self.force_a:
+            return "Force B Victory - Force A Empty"
+        elif not self.force_b:
+            return "Force A Victory - Force B Empty"
+
+        # Handle battle outcomes after combat
         if operational_a and operational_b:
             return "Draw - Both forces have survivors"
         elif operational_a:
