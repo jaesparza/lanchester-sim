@@ -266,8 +266,16 @@ class LanchesterSquare:
             A_casualties = self.A0
             B_casualties = self.B0 - remaining_strength
         else:
-            A_casualties = self.A0
-            B_casualties = self.B0
+            # Draw case: check if battle actually ends
+            if np.isinf(t_end):
+                # Infinite battle time means no casualties occur
+                # (zero effectiveness or exact draws with exponential decay)
+                A_casualties = 0
+                B_casualties = 0
+            else:
+                # Finite draw: both forces eliminated
+                A_casualties = self.A0
+                B_casualties = self.B0
         
         return {
             'time': t,

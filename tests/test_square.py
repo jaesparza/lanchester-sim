@@ -1195,6 +1195,132 @@ class TestLanchesterSquare(unittest.TestCase):
         self.assertLess(A_forces[mid_idx], A_forces[0])
         self.assertLess(B_forces[mid_idx], B_forces[0])
 
+    def test_casualty_reporting_infinite_battles_regression(self):
+        """Regression test for casualty misreporting in infinite battle scenarios.
+
+        Previously, all draw cases reported 100% casualties regardless of whether
+        the battle actually ended. This was incorrect for:
+        - Zero effectiveness cases (alpha=beta=0): no attrition occurs
+        - Exact draws (invariant≈0): exponential decay never reaches zero
+
+        The fix: Guard on np.isinf(battle_end_time) when calculating casualties.
+        """
+        # Test case 1: Zero effectiveness - no attrition should occur
+        battle_zero_eff = LanchesterSquare(A0=100, B0=80, alpha=0.0, beta=0.0)
+        solution_zero_eff = battle_zero_eff.analytical_solution()
+
+        self.assertTrue(np.isinf(solution_zero_eff['battle_end_time']),
+                       "Zero effectiveness should result in infinite battle time")
+        self.assertEqual(solution_zero_eff['winner'], 'Draw')
+        self.assertEqual(solution_zero_eff['A_casualties'], 0,
+                        "Zero effectiveness should result in zero A casualties")
+        self.assertEqual(solution_zero_eff['B_casualties'], 0,
+                        "Zero effectiveness should result in zero B casualties")
+
+        # Test case 2: Exact draw - exponential decay never reaches zero
+        battle_exact_draw = LanchesterSquare(A0=100, B0=100, alpha=0.01, beta=0.01)
+        solution_exact_draw = battle_exact_draw.analytical_solution()
+
+        self.assertTrue(np.isinf(solution_exact_draw['battle_end_time']),
+                       "Exact draw should result in infinite battle time")
+        self.assertEqual(solution_exact_draw['winner'], 'Draw')
+        self.assertEqual(solution_exact_draw['A_casualties'], 0,
+                        "Exact draw with infinite time should result in zero A casualties")
+        self.assertEqual(solution_exact_draw['B_casualties'], 0,
+                        "Exact draw with infinite time should result in zero B casualties")
+
+        # Test case 3: Verify trajectories are consistent with casualty reporting
+        # Forces should remain at initial values for zero effectiveness
+        A_initial = solution_zero_eff['A'][0]
+        A_final = solution_zero_eff['A'][-1]
+        B_initial = solution_zero_eff['B'][0]
+        B_final = solution_zero_eff['B'][-1]
+
+        self.assertAlmostEqual(A_initial, battle_zero_eff.A0, places=1)
+        self.assertAlmostEqual(B_initial, battle_zero_eff.B0, places=1)
+        self.assertAlmostEqual(A_final, A_initial, places=1,
+                              msg="A force should remain constant with zero effectiveness")
+        self.assertAlmostEqual(B_final, B_initial, places=1,
+                              msg="B force should remain constant with zero effectiveness")
+
+        # Test case 4: Near-draw with finite time should still report full casualties
+        battle_near_draw = LanchesterSquare(A0=100, B0=99.9, alpha=0.01, beta=0.01)
+        solution_near_draw = battle_near_draw.analytical_solution()
+
+        if not np.isinf(solution_near_draw['battle_end_time']):
+            # For finite battle times in draw cases, casualties should be reported
+            self.assertGreater(solution_near_draw['A_casualties'], 0,
+                              "Near-draw with finite time should report casualties")
+            self.assertGreater(solution_near_draw['B_casualties'], 0,
+                              "Near-draw with finite time should report casualties")
+
+    def test_comprehensive_casualty_validation(self):
+        """Comprehensive casualty validation to prevent regression of infinite battle bug.
+
+        These tests ensure casualty calculations are accurate across all scenarios:
+        - Normal winner cases: casualties = losses, winner has survivors
+        - Zero effectiveness: infinite time, zero casualties
+        - Exact draws: infinite time, zero casualties
+        - Near draws: finite time, appropriate casualties
+        - Trajectory consistency: reported casualties match actual losses
+        """
+        # Test 1: Normal winner scenarios
+        battle_a_wins = LanchesterSquare(A0=100, B0=80, alpha=0.01, beta=0.01)
+        solution_a_wins = battle_a_wins.analytical_solution()
+
+        self.assertEqual(solution_a_wins['winner'], 'A')
+        self.assertEqual(solution_a_wins['B_casualties'], 80)  # B eliminated
+        self.assertEqual(solution_a_wins['A_casualties'], 100 - solution_a_wins['remaining_strength'])
+        self.assertLess(solution_a_wins['A_casualties'], 100)  # A has survivors
+
+        # Test 2: Zero effectiveness cases
+        for desc, case in [
+            ("both_zero", {"A0": 100, "B0": 80, "alpha": 0.0, "beta": 0.0}),
+            ("different_sizes", {"A0": 50, "B0": 120, "alpha": 0.0, "beta": 0.0})
+        ]:
+            with self.subTest(case=desc):
+                battle = LanchesterSquare(**case)
+                solution = battle.analytical_solution()
+
+                self.assertTrue(np.isinf(solution['battle_end_time']))
+                self.assertEqual(solution['winner'], 'Draw')
+                self.assertEqual(solution['A_casualties'], 0)
+                self.assertEqual(solution['B_casualties'], 0)
+
+        # Test 3: Exact draws with infinite time
+        for case in [
+            {"A0": 100, "B0": 100, "alpha": 0.01, "beta": 0.01},
+            {"A0": 50, "B0": 50, "alpha": 0.02, "beta": 0.02}
+        ]:
+            with self.subTest(case=case):
+                battle = LanchesterSquare(**case)
+                solution = battle.analytical_solution()
+
+                self.assertTrue(np.isinf(solution['battle_end_time']))
+                self.assertEqual(solution['winner'], 'Draw')
+                self.assertEqual(solution['A_casualties'], 0)
+                self.assertEqual(solution['B_casualties'], 0)
+
+        # Test 4: Trajectory consistency for finite time cases
+        finite_cases = [
+            {"A0": 100, "B0": 80, "alpha": 0.01, "beta": 0.01},  # A wins
+            {"A0": 60, "B0": 90, "alpha": 0.01, "beta": 0.01},   # B wins
+        ]
+
+        for i, case in enumerate(finite_cases):
+            with self.subTest(finite_case=i):
+                battle = LanchesterSquare(**case)
+                solution = battle.analytical_solution()
+
+                if not np.isinf(solution['battle_end_time']):
+                    # Calculate trajectory losses
+                    actual_A_losses = solution['A'][0] - solution['A'][-1]
+                    actual_B_losses = solution['B'][0] - solution['B'][-1]
+
+                    # Should match reported casualties (within tolerance)
+                    self.assertAlmostEqual(solution['A_casualties'], actual_A_losses, delta=1.0)
+                    self.assertAlmostEqual(solution['B_casualties'], actual_B_losses, delta=1.0)
+
     def test_edge_case_robustness_comprehensive(self):
         """Comprehensive test of all new edge case handling improvements.
 
