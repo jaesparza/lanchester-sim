@@ -17,7 +17,7 @@ def linear_example():
     print("LANCHESTER LINEAR LAW EXAMPLE")
     print("="*50)
 
-    battle = LanchesterLinear(A0=100, B0=80, alpha=0.01, beta=0.012)
+    battle = LanchesterLinear(A0=100, B0=80, alpha=0.01, beta=0.01)
     solution = battle.simple_analytical_solution()
 
     print(f"Winner: {solution['winner']}")
@@ -134,42 +134,48 @@ def plot_all_battles():
     salvo_simulation.plot_battle_progress(title="Salvo Combat Example",
                                          ax=axes[0, 2])
 
-    # Plot 4: Direct Comparison - Linear vs Square (same initial forces)
-    axes[1, 0].plot(comp_linear_result['time'], comp_linear_result['A'], 'b-', linewidth=2, label=f'Linear: Force A')
-    axes[1, 0].plot(comp_linear_result['time'], comp_linear_result['B'], 'r-', linewidth=2, label=f'Linear: Force B')
-    axes[1, 0].plot(comp_square_result['time'], comp_square_result['A'], 'b--', linewidth=2, alpha=0.7, label=f'Square: Force A')
-    axes[1, 0].plot(comp_square_result['time'], comp_square_result['B'], 'r--', linewidth=2, alpha=0.7, label=f'Square: Force B')
-    axes[1, 0].set_xlabel('Time')
+    # Plot 4: Direct Comparison - Normalized Time Scale (0-100% completion)
+    # Normalize time to battle completion percentage for fair comparison
+    linear_time_norm = 100 * comp_linear_result['time'] / comp_linear_result['battle_end_time']
+    square_time_norm = 100 * comp_square_result['time'] / comp_square_result['battle_end_time']
+
+    axes[1, 0].plot(linear_time_norm, comp_linear_result['A'], 'b-', linewidth=2, label=f'Linear: Force A')
+    axes[1, 0].plot(linear_time_norm, comp_linear_result['B'], 'r-', linewidth=2, label=f'Linear: Force B')
+    axes[1, 0].plot(square_time_norm, comp_square_result['A'], 'b--', linewidth=2, alpha=0.7, label=f'Square: Force A')
+    axes[1, 0].plot(square_time_norm, comp_square_result['B'], 'r--', linewidth=2, alpha=0.7, label=f'Square: Force B')
+    axes[1, 0].set_xlabel('Battle Completion (%)')
     axes[1, 0].set_ylabel('Force Strength')
-    axes[1, 0].set_title('Direct Model Comparison\n(Same Initial Forces)')
+    axes[1, 0].set_title('Model Comparison\n(Normalized Time: Linear=8000, Square=110 units)')
     axes[1, 0].legend(fontsize=8)
     axes[1, 0].grid(True, alpha=0.3)
-    axes[1, 0].set_xlim(0, max(max(comp_linear_result['time']), max(comp_square_result['time'])))
+    axes[1, 0].set_xlim(0, 100)
     axes[1, 0].set_ylim(0, max(comp_linear.A0, comp_linear.B0) * 1.1)
 
-    # Plot 5: Force Advantage Over Time
-    # Note: For Linear Law, true advantage should use effectiveness weights, but for visualization
-    # we show the raw force difference for comparison with Square Law
+    # Plot 5: Force Advantage Over Time (normalized time scale)
     linear_advantage = comp_linear_result['A'] - comp_linear_result['B']
     square_advantage = comp_square_result['A'] - comp_square_result['B']
-    axes[1, 1].plot(comp_linear_result['time'], linear_advantage, 'g-', linewidth=2, label='Linear Law Advantage')
-    axes[1, 1].plot(comp_square_result['time'], square_advantage, 'purple', linestyle='--', linewidth=2, label='Square Law Advantage')
+    axes[1, 1].plot(linear_time_norm, linear_advantage, 'g-', linewidth=2, label='Linear Law Advantage')
+    axes[1, 1].plot(square_time_norm, square_advantage, 'purple', linestyle='--', linewidth=2, label='Square Law Advantage')
     axes[1, 1].axhline(y=0, color='black', linestyle='-', alpha=0.3)
-    axes[1, 1].set_xlabel('Time')
+    axes[1, 1].set_xlabel('Battle Completion (%)')
     axes[1, 1].set_ylabel('Force Advantage (A - B)')
-    axes[1, 1].set_title('Force Advantage Comparison\n(Positive = A Winning)')
+    axes[1, 1].set_title('Force Advantage Evolution\n(Positive = A Winning)')
     axes[1, 1].legend()
     axes[1, 1].grid(True, alpha=0.3)
+    axes[1, 1].set_xlim(0, 100)
 
     # Plot 6: Model Comparison Summary
-    axes[1, 2].text(0.1, 0.7, "Model Comparison Summary:", fontsize=12, weight='bold')
-    axes[1, 2].text(0.1, 0.6, f"Same initial forces: A={comp_linear.A0}, B={comp_linear.B0}", fontsize=10)
-    axes[1, 2].text(0.1, 0.5, f"Linear winner: {comp_linear_result['winner']} ({comp_linear_result['remaining_strength']:.1f} survivors)", fontsize=10)
-    axes[1, 2].text(0.1, 0.4, f"Square winner: {comp_square_result['winner']} ({comp_square_result['remaining_strength']:.1f} survivors)", fontsize=10)
-    axes[1, 2].text(0.1, 0.3, "Key Differences:", fontsize=11, weight='bold')
-    axes[1, 2].text(0.1, 0.2, "• Linear: hand-to-hand combat", fontsize=9)
-    axes[1, 2].text(0.1, 0.15, "• Square: modern ranged combat", fontsize=9)
-    axes[1, 2].text(0.1, 0.1, "• Salvo: discrete missile/naval", fontsize=9)
+    axes[1, 2].text(0.1, 0.8, "Model Comparison Summary:", fontsize=12, weight='bold')
+    axes[1, 2].text(0.1, 0.7, f"Same initial forces: A={comp_linear.A0}, B={comp_linear.B0}", fontsize=10)
+    axes[1, 2].text(0.1, 0.6, f"Linear: {comp_linear_result['winner']} wins, {comp_linear_result['remaining_strength']:.0f} survivors", fontsize=10)
+    axes[1, 2].text(0.1, 0.55, f"  Battle time: {comp_linear_result['battle_end_time']:.0f} units", fontsize=9)
+    axes[1, 2].text(0.1, 0.5, f"Square: {comp_square_result['winner']} wins, {comp_square_result['remaining_strength']:.0f} survivors", fontsize=10)
+    axes[1, 2].text(0.1, 0.45, f"  Battle time: {comp_square_result['battle_end_time']:.0f} units", fontsize=9)
+    axes[1, 2].text(0.1, 0.35, "Key Differences:", fontsize=11, weight='bold')
+    axes[1, 2].text(0.1, 0.25, "• Linear: hand-to-hand combat", fontsize=9)
+    axes[1, 2].text(0.1, 0.2, "• Square: modern ranged combat", fontsize=9)
+    axes[1, 2].text(0.1, 0.15, "• Salvo: discrete missile/naval", fontsize=9)
+    axes[1, 2].text(0.1, 0.05, "Time scales normalized for comparison", fontsize=8, style='italic')
     axes[1, 2].set_xlim(0, 1)
     axes[1, 2].set_ylim(0, 1)
     axes[1, 2].axis('off')
