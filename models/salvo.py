@@ -251,6 +251,31 @@ class SalvoCombatModel:
                                  max(total_a_staying / max(total_b_offensive * (1 - avg_defensive), 1),
                                      total_b_staying / max(total_a_offensive * (1 - avg_defensive), 1)))
 
+            # Check if meaningful attrition is possible before determining winner
+            # If offensive power is too low relative to staying power, forces may survive indefinitely
+            effective_damage_a = total_a_offensive * (1 - avg_defensive)
+            effective_damage_b = total_b_offensive * (1 - avg_defensive)
+
+            # If neither force can deal meaningful damage, fall back to full simulation
+            if effective_damage_a < 0.1 and effective_damage_b < 0.1:
+                if not quiet:
+                    print(f"Low attrition scenario detected (effective damage A: {effective_damage_a:.3f}, B: {effective_damage_b:.3f})")
+                    print("Falling back to full simulation for accurate results...")
+
+                # Run full simulation and return formatted result
+                outcome = self.run_simulation(max_rounds=max_rounds, quiet=quiet)
+                stats = self.get_battle_statistics()
+
+                return {
+                    'outcome': outcome,
+                    'rounds': stats['rounds'],
+                    'force_a_survivors': stats['force_a_survivors'],
+                    'force_b_survivors': stats['force_b_survivors'],
+                    'method': 'full_simulation',
+                    'defensive_similarity': defensive_similarity,
+                    'reason': 'low_attrition_fallback'
+                }
+
             # Determine winner based on total effectiveness
             if total_a_offensive > total_b_offensive:
                 winner = "Force A Victory"
@@ -264,9 +289,30 @@ class SalvoCombatModel:
                 estimated_survivors_a = 0
                 estimated_survivors_b = max(1, int(len(self.force_b) * (advantage_ratio - 1) / advantage_ratio))
             else:
-                winner = "Mutual Annihilation"
-                estimated_survivors_a = 0
-                estimated_survivors_b = 0
+                # Equal offensive power case - check if attrition is meaningful
+                if effective_damage_a < 1.0 and effective_damage_b < 1.0:
+                    # Low damage scenario - likely to result in survivors on both sides
+                    if not quiet:
+                        print(f"Equal forces with low attrition (effective damage: {effective_damage_a:.3f})")
+                        print("Falling back to full simulation for accurate draw resolution...")
+
+                    # Run full simulation and return formatted result
+                    outcome = self.run_simulation(max_rounds=max_rounds, quiet=quiet)
+                    stats = self.get_battle_statistics()
+
+                    return {
+                        'outcome': outcome,
+                        'rounds': stats['rounds'],
+                        'force_a_survivors': stats['force_a_survivors'],
+                        'force_b_survivors': stats['force_b_survivors'],
+                        'method': 'full_simulation',
+                        'defensive_similarity': defensive_similarity,
+                        'reason': 'equal_power_low_attrition_fallback'
+                    }
+                else:
+                    winner = "Mutual Annihilation"
+                    estimated_survivors_a = 0
+                    estimated_survivors_b = 0
 
             if not quiet:
                 print(f"Simplified Analysis:")

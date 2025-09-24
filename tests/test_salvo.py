@@ -367,6 +367,90 @@ class TestSalvoCombatModel(unittest.TestCase):
         self.assertGreater(normal_battle.round_number, 0,
                           msg="Normal battle should execute at least one round")
 
+    def test_simplified_path_low_attrition_fallback_regression(self):
+        """Regression test for simplified path false mutual annihilation.
+
+        Previously, simple_simulation would declare "Mutual Annihilation" for
+        equal offensive power cases regardless of whether meaningful attrition
+        was possible. This led to incorrect results where forces with very low
+        offensive power would be declared mutually annihilated when they could
+        actually survive indefinitely.
+
+        The fix detects low attrition scenarios and falls back to full simulation.
+        """
+
+        # Test case 1: Very low offensive power - should fall back to full simulation
+        low_power_a = [Ship("Low A", offensive_power=0.5, defensive_power=0.3, staying_power=2)]
+        low_power_b = [Ship("Low B", offensive_power=0.5, defensive_power=0.3, staying_power=2)]
+
+        model_low = SalvoCombatModel(low_power_a, low_power_b, random_seed=42)
+        result_low = model_low.simple_simulation(quiet=True)
+
+        # Should fall back to full simulation due to low effective damage
+        self.assertEqual(result_low['method'], 'full_simulation',
+                        msg="Low attrition case should fall back to full simulation")
+        self.assertIn('low_attrition', result_low.get('reason', ''),
+                     msg="Should indicate low attrition as fallback reason")
+
+        # Should not result in mutual annihilation with zero survivors
+        self.assertNotEqual(result_low['outcome'], 'Mutual Annihilation',
+                           msg="Low attrition should not result in mutual annihilation")
+
+        # With these parameters, both forces should survive
+        self.assertGreater(result_low['force_a_survivors'] + result_low['force_b_survivors'], 0,
+                          msg="Low attrition case should have survivors")
+
+        # Test case 2: Higher offensive power - should use simplified path
+        high_power_a = [Ship("High A", offensive_power=5, defensive_power=0.3, staying_power=2)]
+        high_power_b = [Ship("High B", offensive_power=5, defensive_power=0.3, staying_power=2)]
+
+        model_high = SalvoCombatModel(high_power_a, high_power_b, random_seed=42)
+        result_high = model_high.simple_simulation(quiet=True)
+
+        # Should use simplified method for meaningful attrition
+        self.assertEqual(result_high.get('method', 'simplified'), 'simplified',
+                        msg="High damage case should use simplified method")
+
+        # Test case 3: Boundary case - zero defensive power
+        boundary_a = [Ship("Boundary A", offensive_power=0.5, defensive_power=0.0, staying_power=3)]
+        boundary_b = [Ship("Boundary B", offensive_power=0.5, defensive_power=0.0, staying_power=3)]
+
+        model_boundary = SalvoCombatModel(boundary_a, boundary_b, random_seed=42)
+        result_boundary = model_boundary.simple_simulation(quiet=True)
+
+        # With effective_damage = 0.5 and equal forces, should fall back for equal power low attrition
+        self.assertEqual(result_boundary['method'], 'full_simulation',
+                        msg="Equal power boundary case should fall back to full simulation")
+
+        # Test case 4: Verify the thresholds work correctly
+        # effective_damage_a = 0.5 * (1 - 0.3) = 0.35 < 1.0 (triggers equal power fallback)
+        # effective_damage_a = 0.1 * (1 - 0.3) = 0.07 < 0.1 (triggers general fallback)
+
+        very_low_a = [Ship("Very Low A", offensive_power=0.1, defensive_power=0.3, staying_power=2)]
+        very_low_b = [Ship("Very Low B", offensive_power=0.1, defensive_power=0.3, staying_power=2)]
+
+        model_very_low = SalvoCombatModel(very_low_a, very_low_b, random_seed=42)
+        result_very_low = model_very_low.simple_simulation(quiet=True)
+
+        # Should trigger the general low attrition fallback (effective_damage < 0.1)
+        self.assertEqual(result_very_low['method'], 'full_simulation',
+                        msg="Very low damage should fall back to full simulation")
+        self.assertEqual(result_very_low['reason'], 'low_attrition_fallback',
+                        msg="Should use general low attrition fallback")
+
+        # Test case 5: Ensure high damage cases still work with simplified path
+        strong_a = [Ship("Strong A", offensive_power=10, defensive_power=0.2, staying_power=3)]
+        strong_b = [Ship("Strong B", offensive_power=8, defensive_power=0.2, staying_power=3)]
+
+        model_strong = SalvoCombatModel(strong_a, strong_b, random_seed=42)
+        result_strong = model_strong.simple_simulation(quiet=True)
+
+        # Should use simplified method and produce clear winner
+        self.assertEqual(result_strong.get('method', 'simplified'), 'simplified',
+                        msg="High damage unequal forces should use simplified method")
+        self.assertEqual(result_strong['outcome'], 'Force A Victory',
+                        msg="Stronger force A should win in simplified calculation")
+
 
 if __name__ == '__main__':
     unittest.main()
