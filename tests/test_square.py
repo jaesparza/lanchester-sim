@@ -225,6 +225,19 @@ class TestLanchesterSquare(unittest.TestCase):
         self.assertAlmostEqual(solution_b['battle_end_time'], expected_duration_b, places=5,
                               msg=f"B elimination duration should be {expected_duration_b:.3f}")
 
+    def test_arctanh_near_domain_limit(self):
+        """Regression: near-singular arctanh should stay in analytic regime."""
+        battle = LanchesterSquare(A0=1000, B0=999.9, alpha=0.01, beta=0.01)
+        solution = battle.analytical_solution()
+
+        expected_arg = np.sqrt(0.01 / 0.01) * battle.B0 / battle.A0
+        expected_duration = (1 / np.sqrt(0.01 * 0.01)) * np.arctanh(expected_arg)
+
+        self.assertAlmostEqual(
+            solution['battle_end_time'], expected_duration, places=6,
+            msg="Battle end time should follow the unclipped analytic solution even when arg≈1"
+        )
+
     def test_simple_vs_full_solution_consistency(self):
         """Test that simple and full analytical solutions give identical results for equal effectiveness."""
         # This test prevents regression of the dimensional inconsistency bug in simple_analytical_solution

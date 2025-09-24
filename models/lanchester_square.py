@@ -20,6 +20,7 @@ class LanchesterSquare:
     SIMPLE_DRAW_PREVIEW = 5.0        # Preview window for exact draw cases where battle time is infinite
     CURVE_EXPONENT = 0.7             # Exponent for curved force decrease in simple solution. Creates realistic non-linear casualty patterns where initial losses are slower, then accelerate.
     LARGE_TIME_THRESHOLD = 1e15      # Times above this are treated as effectively infinite for numerical stability
+    ARCTANH_CLIP = 1.0 - 1e-12       # Clamp argument to keep it within open interval (-1, 1)
     
     def __init__(self, A0, B0, alpha, beta):
         """
@@ -101,11 +102,10 @@ class LanchesterSquare:
                 arg = ratio * self.B0 / self.A0
 
                 # Check for valid arctanh domain [-1, 1]
-                if abs(arg) >= 0.999:  # Very close to domain boundary, use limiting case
-                    # Use proper limiting formula instead of clipping: t = B₀/(α×A₀)
-                    t_end = self.B0 / (self.alpha * self.A0)
-                else:
-                    t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
+                # Numerical noise near the ±1 boundary can push arctanh outside its domain.
+                # Clamp the argument into the open interval (-1, 1) so the analytic form stays valid.
+                arg = np.clip(arg, -self.ARCTANH_CLIP, self.ARCTANH_CLIP)
+                t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
                 # Degenerate case: β=0 (A wins because B can't damage A)
                 # Use limiting integration: t = B₀/(α * A₀)
@@ -121,11 +121,8 @@ class LanchesterSquare:
                 arg = ratio * self.A0 / self.B0
 
                 # Check for valid arctanh domain [-1, 1]
-                if abs(arg) >= 0.999:  # Very close to domain boundary, use limiting case
-                    # Use proper limiting formula instead of clipping: t = A₀/(β×B₀)
-                    t_end = self.A0 / (self.beta * self.B0)
-                else:
-                    t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
+                arg = np.clip(arg, -self.ARCTANH_CLIP, self.ARCTANH_CLIP)
+                t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
                 # Degenerate case: α=0 (B wins because A can't damage B)
                 # Use limiting integration: t = A₀/(β * B₀)
