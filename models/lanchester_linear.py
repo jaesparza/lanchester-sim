@@ -12,6 +12,7 @@ class LanchesterLinear:
 
     # Constants for numerical calculations
     EFFECTIVENESS_TOLERANCE = 1e-10  # Numerical tolerance for determining if alpha ≈ beta (equal effectiveness). Avoids floating-point comparison issues.
+    FORCE_ZERO_TOLERANCE = 1e-12     # Tolerance for treating forces as zero. Much stricter than np.isclose defaults to preserve small detachments.
     TIME_EXTENSION_FACTOR = 1.2      # Extends time arrays 20% beyond battle end for better visualization of final states
     TIME_MINIMUM_EXTENSION = 1.0     # Minimum time extension for very short battles to ensure readable plots
     DEFAULT_TIME_POINTS = 1000       # Number of time points for trajectory calculations. Balances smoothness with performance.
@@ -49,8 +50,8 @@ class LanchesterLinear:
         tuple: (winner, remaining_strength, t_end)
         """
         # Immediate resolution when one or both sides start with zero strength
-        a_initially_depleted = np.isclose(self.A0, 0.0)
-        b_initially_depleted = np.isclose(self.B0, 0.0)
+        a_initially_depleted = abs(self.A0) <= self.FORCE_ZERO_TOLERANCE
+        b_initially_depleted = abs(self.B0) <= self.FORCE_ZERO_TOLERANCE
 
         if a_initially_depleted and b_initially_depleted:
             return 'Draw', 0.0, 0.0
