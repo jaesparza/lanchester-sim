@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,12 +11,13 @@ class LanchesterSquare:
     """
 
     # Constants for numerical calculations
-    EFFECTIVENESS_TOLERANCE = 1e-10  # Numerical tolerance for determining if alpha ≈ beta (equal effectiveness). Avoids floating-point comparison issues.
+    EFFECTIVENESS_TOLERANCE = 1e-10  # Relative tolerance for determining if alpha ≈ beta (equal effectiveness). Avoids floating-point comparison issues.
     TIME_EXTENSION_FACTOR = 1.2      # Extends time arrays 20% beyond battle end for better visualization of final states
     TIME_MINIMUM_EXTENSION = 0.5     # Minimum time extension for very short battles to ensure readable plots
     DEFAULT_TIME_POINTS = 1000       # Number of time points for trajectory calculations. Balances smoothness with performance.
     SIMPLE_TIME_EXTENSION = 1.5      # 50% time extension for simple analytical solution (needs more padding for curved trajectories)
     SIMPLE_MINIMUM_TIME = 2.0        # Minimum visualization time for simple solution to show force dynamics clearly
+    SIMPLE_DRAW_PREVIEW = 5.0        # Preview window for exact draw cases where battle time is infinite
     CURVE_EXPONENT = 0.7             # Exponent for curved force decrease in simple solution. Creates realistic non-linear casualty patterns where initial losses are slower, then accelerate.
     
     def __init__(self, A0, B0, alpha, beta):
@@ -287,7 +289,12 @@ class LanchesterSquare:
         initial force sizes, and A_final = sqrt(A₀² - B₀²) if A wins.
         """
         # Calculate the Square Law invariant for equal effectiveness case
-        if abs(self.alpha - self.beta) < self.EFFECTIVENESS_TOLERANCE:  # Approximately equal
+        if math.isclose(self.alpha, self.beta, rel_tol=self.EFFECTIVENESS_TOLERANCE, abs_tol=0.0):  # Approximately equal
+            # Guard against degenerate zero-effectiveness scenarios that would
+            # otherwise create divide-by-zero issues in the hyperbolic forms.
+            if self.alpha == 0 or self.beta == 0:
+                return self.analytical_solution(t_max)
+
             # Use same outcome calculation as full analytical solution
             invariant = self.alpha * self.A0**2 - self.beta * self.B0**2
 
@@ -303,13 +310,22 @@ class LanchesterSquare:
 
             # Use the same battle end time calculation as the full analytical solution
             t_end = self.calculate_battle_end_time(winner, remaining_strength, invariant)
+
+            # Exact draws (or other degenerate results) return infinite or
+            # non-positive battle times. Fall back to the full solution which
+            # already handles these cases with finite preview windows.
+            if not np.isfinite(t_end) or t_end <= 0:
+                return self.analytical_solution(t_max)
         else:
             # Use general case (fallback to original method)
             return self.analytical_solution(t_max)
 
         # Create time array
         if t_max is None:
-            t_max = max(t_end * self.SIMPLE_TIME_EXTENSION, self.SIMPLE_MINIMUM_TIME)
+            if np.isinf(t_end):
+                t_max = max(self.SIMPLE_DRAW_PREVIEW, self.SIMPLE_MINIMUM_TIME)
+            else:
+                t_max = max(t_end * self.SIMPLE_TIME_EXTENSION, self.SIMPLE_MINIMUM_TIME)
 
         t = np.linspace(0, t_max, self.DEFAULT_TIME_POINTS)
 
