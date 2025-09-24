@@ -80,10 +80,9 @@ class LanchesterSquare:
                 arg = ratio * self.B0 / self.A0
 
                 # Check for valid arctanh domain [-1, 1]
-                if abs(arg) >= 1.0:
-                    # Clip argument to valid range instead of using dimensionally inconsistent fallback
-                    arg_clipped = np.sign(arg) * 0.999999  # Very close to ±1 but valid
-                    t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg_clipped)
+                if abs(arg) >= 0.99:  # Approaching domain boundary, use limiting case
+                    # Use proper limiting formula instead of clipping: t = B₀/(α×A₀)
+                    t_end = self.B0 / (self.alpha * self.A0)
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
@@ -100,10 +99,9 @@ class LanchesterSquare:
                 arg = ratio * self.A0 / self.B0
 
                 # Check for valid arctanh domain [-1, 1]
-                if abs(arg) >= 1.0:
-                    # Clip argument to valid range instead of using dimensionally inconsistent fallback
-                    arg_clipped = np.sign(arg) * 0.999999  # Very close to ±1 but valid
-                    t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg_clipped)
+                if abs(arg) >= 0.99:  # Approaching domain boundary, use limiting case
+                    # Use proper limiting formula instead of clipping: t = A₀/(β×B₀)
+                    t_end = self.A0 / (self.beta * self.B0)
                 else:
                     t_end = (1 / np.sqrt(self.alpha * self.beta)) * np.arctanh(arg)
             else:
@@ -138,6 +136,37 @@ class LanchesterSquare:
 
         return t_end
 
+    def _stable_hyperbolic_solution(self, t):
+        """Compute exact Square Law trajectories with improved numerical stability."""
+        ld = np.longdouble
+        t_ld = t.astype(ld, copy=False)
+        alpha_ld = ld(self.alpha)
+        beta_ld = ld(self.beta)
+        A0_ld = ld(self.A0)
+        B0_ld = ld(self.B0)
+
+        gamma = np.sqrt(alpha_ld * beta_ld)
+        exp_neg = np.exp(-gamma * t_ld)
+        exp_neg = np.clip(exp_neg, np.finfo(np.longdouble).tiny, None)
+        exp_pos = 1.0 / exp_neg
+        exp_neg_sq = exp_neg * exp_neg
+
+        ratio_ab = np.sqrt(beta_ld / alpha_ld)
+        ratio_ba = np.sqrt(alpha_ld / beta_ld)
+
+        k1 = 0.5 * (A0_ld - ratio_ab * B0_ld)
+        k2 = 0.5 * (A0_ld + ratio_ab * B0_ld)
+        m1 = 0.5 * (B0_ld - ratio_ba * A0_ld)
+        m2 = 0.5 * (B0_ld + ratio_ba * A0_ld)
+
+        A_exact_ld = exp_pos * (k1 + k2 * exp_neg_sq)
+        B_exact_ld = exp_pos * (m1 + m2 * exp_neg_sq)
+
+        A_exact = np.asarray(A_exact_ld, dtype=float)
+        B_exact = np.asarray(B_exact_ld, dtype=float)
+
+        return A_exact, B_exact
+
     def generate_force_trajectories(self, winner, remaining_strength, t_end, t, invariant):
         """
         Generate force strength trajectories over time.
@@ -162,6 +191,24 @@ class LanchesterSquare:
             B_t = np.full_like(t, self.B0)
             return A_t, B_t
 
+        exact_A = exact_B = None
+        if self.alpha > 0 and self.beta > 0:
+            if np.isinf(t_end):
+                mask = np.ones_like(t, dtype=bool)
+            else:
+                mask = t < t_end
+
+            if np.any(mask):
+                exact_vals_A = np.zeros_like(t)
+                exact_vals_B = np.zeros_like(t)
+                A_subset, B_subset = self._stable_hyperbolic_solution(t[mask])
+                exact_vals_A[mask] = A_subset
+                exact_vals_B[mask] = B_subset
+                exact_A, exact_B = exact_vals_A, exact_vals_B
+            else:
+                exact_A = np.zeros_like(t)
+                exact_B = np.zeros_like(t)
+
         for i, time in enumerate(t):
             # Skip artificial cutoff for infinite battle time (exact draws)
             if not np.isinf(t_end) and time >= t_end:
@@ -177,10 +224,9 @@ class LanchesterSquare:
             else:
                 # Square Law dynamics: dA/dt = -β*B, dB/dt = -α*A
                 if self.alpha > 0 and self.beta > 0:
-                    # Use exact hyperbolic closed form solutions
-                    gamma = np.sqrt(self.alpha * self.beta)
-                    A_exact = self.A0 * np.cosh(gamma * time) - np.sqrt(self.beta / self.alpha) * self.B0 * np.sinh(gamma * time)
-                    B_exact = self.B0 * np.cosh(gamma * time) - np.sqrt(self.alpha / self.beta) * self.A0 * np.sinh(gamma * time)
+                    # Use numerically stable hyperbolic closed form solutions
+                    A_exact = exact_A[i]
+                    B_exact = exact_B[i]
 
                     # Clamp trajectories to proper final values at t_end
                     if winner == 'A':
@@ -341,8 +387,23 @@ class LanchesterSquare:
         A_t = np.zeros_like(t)
         B_t = np.zeros_like(t)
 
-        # For equal effectiveness, use the same exact solutions as the full analytical method
-        gamma = np.sqrt(self.alpha * self.beta)
+        exact_A = exact_B = None
+        if self.alpha > 0 and self.beta > 0:
+            if np.isinf(t_end):
+                mask = np.ones_like(t, dtype=bool)
+            else:
+                mask = t < t_end
+
+            if np.any(mask):
+                exact_vals_A = np.zeros_like(t)
+                exact_vals_B = np.zeros_like(t)
+                A_subset, B_subset = self._stable_hyperbolic_solution(t[mask])
+                exact_vals_A[mask] = A_subset
+                exact_vals_B[mask] = B_subset
+                exact_A, exact_B = exact_vals_A, exact_vals_B
+            else:
+                exact_A = np.zeros_like(t)
+                exact_B = np.zeros_like(t)
 
         for i, time in enumerate(t):
             if time >= t_end:
@@ -356,13 +417,13 @@ class LanchesterSquare:
                     A_t[i] = 0
                     B_t[i] = 0
             else:
-                # Use exact hyperbolic solutions (same as analytical_solution)
-                A_exact = self.A0 * np.cosh(gamma * time) - np.sqrt(self.beta / self.alpha) * self.B0 * np.sinh(gamma * time)
-                B_exact = self.B0 * np.cosh(gamma * time) - np.sqrt(self.alpha / self.beta) * self.A0 * np.sinh(gamma * time)
+                # Use numerically stable hyperbolic solutions (same as analytical_solution)
+                A_exact = exact_A[i]
+                B_exact = exact_B[i]
 
                 A_t[i] = max(0, A_exact)
                 B_t[i] = max(0, B_exact)
-        
+
         return {
             'time': t,
             'A': A_t,

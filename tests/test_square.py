@@ -1487,5 +1487,49 @@ class TestLanchesterSquare(unittest.TestCase):
             self.assertGreater(A_decrease, 1e-6, "Attrition should start immediately for A")
             self.assertGreater(B_decrease, 1e-6, "Attrition should start immediately for B")
 
+    def test_arctanh_domain_boundary_fix_regression(self):
+        """Regression test for arctanh domain violation fix.
+
+        Previously, cases where sqrt(β/α) * B₀/A₀ >= 1.0 would cause invalid arctanh
+        arguments, leading to clipping to 0.999999. This created inaccurate results.
+
+        The fix uses proper limiting case formulas when approaching domain boundary.
+        """
+
+        # Test case that triggers arctanh domain boundary in A wins case
+        # Calculated case: alpha=0.01001, beta=0.0025, A0=100, B0=200
+        # arg = sqrt(0.0025/0.01001) * 200/100 = 0.9995 >= 0.99 ✓
+        # invariant = 0.01001*100^2 - 0.0025*200^2 = 0.1 > 0 (A wins)
+        battle_boundary = LanchesterSquare(A0=100, B0=200, alpha=0.01001, beta=0.0025)
+        solution = battle_boundary.analytical_solution()
+
+        # Should use limiting case formula: t = B₀/(α×A₀) = 200/(0.01001×100) ≈ 199.8
+        expected_time = 200 / (0.01001 * 100)  # ≈199.8
+
+        self.assertAlmostEqual(solution['battle_end_time'], expected_time, places=0,
+                              msg="Arctanh domain boundary should use limiting case formula")
+        self.assertEqual(solution['winner'], 'A',
+                        msg="Force A should win with slightly higher effectiveness")
+
+        # Test the opposite case: arg = sqrt(0.01/0.02) * 100/100 = 0.707 < 1 (valid arctanh)
+        battle_valid = LanchesterSquare(A0=100, B0=100, alpha=0.02, beta=0.01)
+        solution_valid = battle_valid.analytical_solution()
+
+        # This should use normal arctanh formula, not limiting case
+        limiting_case_time = 100 / (0.01 * 100)  # 100.0
+        self.assertNotAlmostEqual(solution_valid['battle_end_time'], limiting_case_time, places=0,
+                                 msg="Valid arctanh case should NOT use limiting formula")
+        self.assertEqual(solution_valid['winner'], 'A',
+                        msg="Force A should win with higher effectiveness")
+
+        # Test extreme boundary case: exactly at threshold
+        battle_extreme = LanchesterSquare(A0=100, B0=99, alpha=0.01, beta=0.01)
+        solution_extreme = battle_extreme.analytical_solution()
+
+        # Should complete without mathematical errors
+        self.assertIsNotNone(solution_extreme['battle_end_time'])
+        self.assertTrue(np.isfinite(solution_extreme['battle_end_time']))
+        self.assertGreater(solution_extreme['battle_end_time'], 0)
+
 if __name__ == '__main__':
     unittest.main()
