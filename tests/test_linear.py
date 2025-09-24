@@ -326,6 +326,36 @@ class TestLanchesterLinear(unittest.TestCase):
         with self.assertRaises(ValueError):
             LanchesterLinear(A0=50, B0=50, alpha=-0.5, beta=0.5)  # Negative effectiveness
 
+    def test_large_values_numerical_stability_consistency(self):
+        """Test that Linear Law handles large values consistently with Square Law.
+
+        Ensures extremely large battle times (>1e15) are treated as infinite
+        for numerical stability and cross-model consistency.
+        """
+
+        # Test extreme case that would result in very large time
+        large_battle = LanchesterLinear(A0=1e8, B0=1e8, alpha=1e-10, beta=1e-10)
+        solution = large_battle.analytical_solution()
+
+        # Should treat this as infinite time for numerical stability
+        self.assertTrue(np.isinf(solution['battle_end_time']),
+                       msg="Extremely large battle times should be treated as infinite")
+        self.assertEqual(solution['winner'], 'Draw',
+                        msg="Infinite time scenario should be classified as draw")
+        self.assertEqual(solution['A_casualties'], 0,
+                        msg="No casualties should occur in infinite time")
+        self.assertEqual(solution['B_casualties'], 0,
+                        msg="No casualties should occur in infinite time")
+
+        # Test that normal large values still work
+        normal_large = LanchesterLinear(A0=10000, B0=10000, alpha=1e-6, beta=1e-6)
+        normal_solution = normal_large.analytical_solution()
+
+        self.assertTrue(np.isfinite(normal_solution['battle_end_time']),
+                       msg="Normal large values should remain finite")
+        self.assertLess(normal_solution['battle_end_time'], LanchesterLinear.LARGE_TIME_THRESHOLD,
+                       msg="Normal case should be below threshold")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -19,6 +19,7 @@ class LanchesterSquare:
     SIMPLE_MINIMUM_TIME = 2.0        # Minimum visualization time for simple solution to show force dynamics clearly
     SIMPLE_DRAW_PREVIEW = 5.0        # Preview window for exact draw cases where battle time is infinite
     CURVE_EXPONENT = 0.7             # Exponent for curved force decrease in simple solution. Creates realistic non-linear casualty patterns where initial losses are slower, then accelerate.
+    LARGE_TIME_THRESHOLD = 1e15      # Times above this are treated as effectively infinite for numerical stability
     
     def __init__(self, A0, B0, alpha, beta):
         """
@@ -151,6 +152,10 @@ class LanchesterSquare:
                     t_end = float('inf')  # No combat effectiveness - battle never ends
                 else:
                     t_end = 1.0  # Fallback for unexpected degenerate case
+
+        # Treat extremely large finite times as infinite for numerical stability
+        if np.isfinite(t_end) and t_end > self.LARGE_TIME_THRESHOLD:
+            t_end = np.inf
 
         return t_end
 

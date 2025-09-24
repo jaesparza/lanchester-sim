@@ -17,6 +17,7 @@ class LanchesterLinear:
     DEFAULT_TIME_POINTS = 1000       # Number of time points for trajectory calculations. Balances smoothness with performance.
     SIMPLE_TIME_EXTENSION = 1.5      # 50% time extension for simple analytical solution (needs more padding for linear trajectories)
     SIMPLE_MINIMUM_TIME = 2.0        # Minimum visualization time for simple solution to show force dynamics clearly
+    LARGE_TIME_THRESHOLD = 1e15      # Times above this are treated as effectively infinite for numerical stability
 
     def __init__(self, A0, B0, alpha, beta):
         """
@@ -47,12 +48,27 @@ class LanchesterLinear:
         Returns:
         tuple: (winner, remaining_strength, t_end)
         """
+        # Immediate resolution when one or both sides start with zero strength
+        a_initially_depleted = np.isclose(self.A0, 0.0)
+        b_initially_depleted = np.isclose(self.B0, 0.0)
+
+        if a_initially_depleted and b_initially_depleted:
+            return 'Draw', 0.0, 0.0
+        if a_initially_depleted:
+            return 'B', self.B0, 0.0
+        if b_initially_depleted:
+            return 'A', self.A0, 0.0
+
         # Calculate when each force would be eliminated
         t_A_eliminated = self.A0 / self.beta if self.beta > 0 else np.inf
         t_B_eliminated = self.B0 / self.alpha if self.alpha > 0 else np.inf
 
         # Battle ends when first force is eliminated
         t_end = min(t_A_eliminated, t_B_eliminated)
+
+        # Treat extremely large finite times as infinite for numerical stability
+        if np.isfinite(t_end) and t_end > self.LARGE_TIME_THRESHOLD:
+            t_end = np.inf
 
         # Determine winner
         if t_A_eliminated < t_B_eliminated:

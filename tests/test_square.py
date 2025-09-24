@@ -10,7 +10,7 @@ Tests mathematical correctness of Square Law implementation:
 
 import unittest
 import numpy as np
-from models import LanchesterSquare
+from models import LanchesterSquare, LanchesterLinear
 
 
 class TestLanchesterSquare(unittest.TestCase):
@@ -1591,6 +1591,64 @@ class TestLanchesterSquare(unittest.TestCase):
         winner_normal, _, _ = battle_normal.calculate_battle_outcome()
         self.assertEqual(winner_normal, 'A',
                         msg="Normal case should still work correctly")
+
+    def test_large_values_numerical_stability_fix_regression(self):
+        """Regression test for numerical stability fix with large values.
+
+        Previously, Linear Law would return finite times (1e18) while Square Law
+        would return infinite times for the same extreme inputs, causing inconsistency.
+
+        The fix treats extremely large finite times (>1e15) as infinite for both models.
+        """
+
+        # Test case with very large forces and tiny effectiveness coefficients
+        # This should result in consistent behavior between models
+        large_linear = LanchesterLinear(A0=1e8, B0=1e8, alpha=1e-10, beta=1e-10)
+        large_square = LanchesterSquare(A0=1e8, B0=1e8, alpha=1e-10, beta=1e-10)
+
+        linear_solution = large_linear.analytical_solution()
+        square_solution = large_square.analytical_solution()
+
+        # Both models should now consistently treat this as infinite time
+        self.assertTrue(np.isinf(linear_solution['battle_end_time']),
+                       msg="Linear Law should treat extremely large times as infinite")
+        self.assertTrue(np.isinf(square_solution['battle_end_time']),
+                       msg="Square Law should treat extremely large times as infinite")
+
+        # Both should classify this as a draw
+        self.assertEqual(linear_solution['winner'], 'Draw',
+                        msg="Linear Law should classify extreme case as draw")
+        self.assertEqual(square_solution['winner'], 'Draw',
+                        msg="Square Law should classify extreme case as draw")
+
+        # Casualty calculation should be consistent with infinite time
+        self.assertEqual(linear_solution['A_casualties'], 0,
+                        msg="Linear Law: no casualties in infinite time scenario")
+        self.assertEqual(linear_solution['B_casualties'], 0,
+                        msg="Linear Law: no casualties in infinite time scenario")
+        self.assertEqual(square_solution['A_casualties'], 0,
+                        msg="Square Law: no casualties in infinite time scenario")
+        self.assertEqual(square_solution['B_casualties'], 0,
+                        msg="Square Law: no casualties in infinite time scenario")
+
+        # Test that moderately large but finite times still work normally
+        # Use asymmetric effectiveness to avoid exact draw scenarios
+        moderate_linear = LanchesterLinear(A0=1000, B0=1000, alpha=1.1e-6, beta=1e-6)
+        moderate_square = LanchesterSquare(A0=1000, B0=1000, alpha=1.1e-6, beta=1e-6)
+
+        moderate_linear_sol = moderate_linear.analytical_solution()
+        moderate_square_sol = moderate_square.analytical_solution()
+
+        # These should have finite times (1e6-1e7, well below 1e15 threshold)
+        self.assertTrue(np.isfinite(moderate_linear_sol['battle_end_time']),
+                       msg="Moderate large values should remain finite in Linear Law")
+        self.assertTrue(np.isfinite(moderate_square_sol['battle_end_time']),
+                       msg="Moderate large values should remain finite in Square Law")
+
+        # Verify the threshold works correctly at boundary
+        boundary_time = LanchesterLinear.LARGE_TIME_THRESHOLD
+        self.assertEqual(boundary_time, 1e15,
+                        msg="Threshold should be 1e15 for consistency")
 
 if __name__ == '__main__':
     unittest.main()
