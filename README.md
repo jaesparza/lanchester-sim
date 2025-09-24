@@ -1,8 +1,29 @@
-# Combat models simulations
-Simple Python implementations of classic combat models:
-- **Lanchester Linear Law** - for guerrilla warfare and hand-to-hand combat
-- **Lanchester Square Law** - for modern ranged combat with concentration effects
-- **Salvo Combat Model** - for discrete missile/naval combat with defensive systems
+# Combat simulation models
+
+Scripts for simulating and analyzing military engagements using classical combat models. This repository implements three foundational approaches to quantitative battle analysis, each suited for different combat scenarios and providing unique strategic insights.
+
+ ## Combat Models
+
+  ### **Lanchester Linear Law**
+  *Guerrilla warfare and close combat*
+  - Models individual duels where combatants engage one-on-one
+  - Linear attrition: `dA/dt = -βB`, `dB/dt = -αA`
+  - Winner determined by initial advantage: `αA₀ - βB₀`
+  - Best for: Hand-to-hand combat, guerrilla tactics, small unit actions
+
+  ### **Lanchester Square Law**
+  *Modern ranged combat with concentration effects*
+  - Models ranged warfare where all units can engage all enemy units
+  - Square law attrition: `dA/dt = -βB·A`, `dB/dt = -αA·B`
+  - Quadratic advantage from concentration: Winner ∝ `√(A₀² - B₀²)`
+  - Best for: Artillery duels, air combat, modern battlefieldengagements
+
+### **Salvo Combat Model**
+  *Naval and missile warfare*
+  - Discrete combat rounds with offensive/defensive systems
+  - Individual ships with staying power and defensive capabilities
+  - Accounts for missile intercepts and multi-hit requirements
+  - Best for: Naval battles, missile exchanges, modern precision warfare
 
 ## Installation
 

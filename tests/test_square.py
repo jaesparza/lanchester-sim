@@ -1383,5 +1383,109 @@ class TestLanchesterSquare(unittest.TestCase):
                 except Exception as e:
                     self.fail(f"Edge case {case['desc']} should not crash: {e}")
 
+    def test_fallback_behavior_exact_vs_approximation_regression(self):
+        """Regression test for fallback behavior between exact hyperbolic and linear approximation methods.
+
+        Verifies that:
+        1. Normal case (α>0, β>0) uses exact hyperbolic solutions with high accuracy
+        2. Degenerate cases (α=0 or β=0) properly fall back to linear approximations
+        3. The behavioral difference between solution paths and their accuracy is as expected
+
+        This covers the gap identified in test_fallback_behavior.py analysis.
+        """
+
+        # Test Case 1: Normal case - should use exact hyperbolic solutions
+        normal_battle = LanchesterSquare(A0=100, B0=80, alpha=0.01, beta=0.01)
+        normal_solution = normal_battle.analytical_solution()
+
+        # Calculate gradients to verify slope accuracy at t=0
+        dA_dt = np.gradient(normal_solution['A'], normal_solution['time'])
+        dB_dt = np.gradient(normal_solution['B'], normal_solution['time'])
+
+        # Expected slopes at t=0: dA/dt = -β*B = -0.01*80, dB/dt = -α*A = -0.01*100
+        expected_dA_dt_t0 = -normal_battle.beta * normal_battle.B0  # -0.8
+        expected_dB_dt_t0 = -normal_battle.alpha * normal_battle.A0  # -1.0
+
+        actual_dA_dt_t0 = dA_dt[0]
+        actual_dB_dt_t0 = dB_dt[0]
+
+        # Normal case should have very high slope accuracy (exact hyperbolic solutions)
+        rel_error_A = abs(actual_dA_dt_t0 - expected_dA_dt_t0) / abs(expected_dA_dt_t0)
+        rel_error_B = abs(actual_dB_dt_t0 - expected_dB_dt_t0) / abs(expected_dB_dt_t0)
+
+        self.assertLess(rel_error_A, 0.01, "Normal case should use exact hyperbolic with <1% slope error")
+        self.assertLess(rel_error_B, 0.01, "Normal case should use exact hyperbolic with <1% slope error")
+
+        # Test Case 2: Degenerate case - should use linear approximation fallback
+        degenerate_battle = LanchesterSquare(A0=100, B0=80, alpha=0.0, beta=0.01)
+        degenerate_solution = degenerate_battle.analytical_solution()
+
+        # Calculate gradients for degenerate case
+        dA_dt_degen = np.gradient(degenerate_solution['A'], degenerate_solution['time'])
+        dB_dt_degen = np.gradient(degenerate_solution['B'], degenerate_solution['time'])
+
+        # For α=0 case: dA/dt = -β*B = -0.01*80 = -0.8, dB/dt = 0
+        expected_dA_dt_degen = -degenerate_battle.beta * degenerate_battle.B0  # -0.8
+        expected_dB_dt_degen = 0.0  # B remains constant when α=0
+
+        actual_dA_dt_degen = dA_dt_degen[0]
+        actual_dB_dt_degen = dB_dt_degen[0]
+
+        # Degenerate case should handle α=0 properly
+        self.assertAlmostEqual(actual_dA_dt_degen, expected_dA_dt_degen, places=6,
+                              msg="Degenerate case should have correct dA/dt = -β*B0")
+        self.assertAlmostEqual(actual_dB_dt_degen, expected_dB_dt_degen, places=6,
+                              msg="Degenerate case should have dB/dt = 0 when α=0")
+
+        # Verify force behavior: A should decrease linearly, B should remain constant
+        mid_idx = len(degenerate_solution['time']) // 2
+        A_mid = degenerate_solution['A'][mid_idx]
+        B_mid = degenerate_solution['B'][mid_idx]
+
+        self.assertAlmostEqual(B_mid, degenerate_battle.B0, places=1,
+                              msg="Force B should remain constant when α=0")
+        self.assertLess(A_mid, degenerate_battle.A0,
+                       msg="Force A should decrease when α=0")
+
+        # Test Case 3: Verify ODE satisfaction throughout trajectory for normal case
+        # Sample points throughout the battle
+        sample_indices = np.linspace(0, len(normal_solution['time'])-1, 5, dtype=int)
+
+        for i in sample_indices:
+            t_val = normal_solution['time'][i]
+            A_val = normal_solution['A'][i]
+            B_val = normal_solution['B'][i]
+
+            if A_val > 1e-6 and B_val > 1e-6:  # Only check when both forces are substantial
+                expected_dA_dt = -normal_battle.beta * B_val
+                expected_dB_dt = -normal_battle.alpha * A_val
+                actual_dA_dt = dA_dt[i]
+                actual_dB_dt = dB_dt[i]
+
+                # ODE satisfaction should be very high for exact solutions
+                rel_tol = 0.05  # 5% tolerance for numerical gradients
+                if abs(expected_dA_dt) > 1e-10:
+                    rel_error_A = abs(actual_dA_dt - expected_dA_dt) / abs(expected_dA_dt)
+                    self.assertLess(rel_error_A, rel_tol,
+                                   f"ODE satisfaction for dA/dt at t={t_val:.3f}")
+
+                if abs(expected_dB_dt) > 1e-10:
+                    rel_error_B = abs(actual_dB_dt - expected_dB_dt) / abs(expected_dB_dt)
+                    self.assertLess(rel_error_B, rel_tol,
+                                   f"ODE satisfaction for dB/dt at t={t_val:.3f}")
+
+        # Test Case 4: Verify immediate attrition (no zero-slope problem)
+        early_indices = np.where(normal_solution['time'] < 1.0)[0][:3]
+        if len(early_indices) > 1:
+            A0, B0 = normal_solution['A'][0], normal_solution['B'][0]
+            A_early = normal_solution['A'][early_indices[1]]
+            B_early = normal_solution['B'][early_indices[1]]
+
+            A_decrease = A0 - A_early
+            B_decrease = B0 - B_early
+
+            self.assertGreater(A_decrease, 1e-6, "Attrition should start immediately for A")
+            self.assertGreater(B_decrease, 1e-6, "Attrition should start immediately for B")
+
 if __name__ == '__main__':
     unittest.main()
