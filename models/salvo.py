@@ -338,10 +338,15 @@ class SalvoCombatModel:
     
     def execute_round(self) -> bool:
         """Execute one round of combat. Returns True if battle continues, False if over"""
-        self.round_number += 1
-
         # Calculate operational forces using helper method
         a_operational, b_operational = self.calculate_operational_forces()
+
+        # Check if battle is already over BEFORE incrementing round number
+        if not a_operational or not b_operational:
+            return False
+
+        # Only increment round number if actual combat will occur
+        self.round_number += 1
 
         # Initialize round log
         round_log = {
@@ -350,10 +355,6 @@ class SalvoCombatModel:
             'force_b_active': len(b_operational),
             'events': []
         }
-
-        # Check if battle is already over
-        if not a_operational or not b_operational:
-            return False
 
         # Execute Force A attack phase using helper method
         attack_events = self.execute_attack_phase(a_operational, b_operational, "Force A")

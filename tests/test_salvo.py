@@ -246,6 +246,73 @@ class TestSalvoCombatModel(unittest.TestCase):
         total_probability = sum(probabilities.values())
         self.assertAlmostEqual(total_probability, 100.0, places=1)  # Should sum to 100%
 
+    def test_phantom_round_prevention_regression(self):
+        """Regression test for phantom round bug prevention.
+
+        Previously, execute_round() incremented round_number before checking
+        if forces were operational, causing phantom rounds to be counted
+        even when no combat occurred. This wasted max_rounds budget.
+
+        The fix: Check operational forces BEFORE incrementing round_number.
+        """
+        # Test case 1: Empty forces should not increment round number
+        force_a = []
+        force_b = [Ship("Ship B", offensive_power=1, defensive_power=0.0, staying_power=1)]
+
+        simulation = SalvoCombatModel(force_a, force_b, random_seed=42)
+
+        initial_round = simulation.round_number
+        result = simulation.execute_round()
+
+        self.assertFalse(result, "Battle should not continue with empty force A")
+        self.assertEqual(simulation.round_number, initial_round,
+                        "Round number should not increment when no combat occurs")
+        self.assertEqual(len(simulation.battle_log), 0,
+                        "No round should be logged when no combat occurs")
+
+        # Test case 2: Both forces eliminated should not increment round number
+        force_a = [Ship("Dead Ship A", offensive_power=0, defensive_power=0.0, staying_power=1)]
+        force_b = [Ship("Dead Ship B", offensive_power=0, defensive_power=0.0, staying_power=1)]
+
+        # Manually eliminate both ships
+        force_a[0].take_damage(10)
+        force_b[0].take_damage(10)
+
+        simulation2 = SalvoCombatModel(force_a, force_b, random_seed=42)
+
+        initial_round = simulation2.round_number
+        result = simulation2.execute_round()
+
+        self.assertFalse(result, "Battle should not continue with both forces eliminated")
+        self.assertEqual(simulation2.round_number, initial_round,
+                        "Round number should not increment when both forces eliminated")
+
+        # Test case 3: Sequential calls should not keep incrementing
+        for i in range(3):
+            round_before = simulation2.round_number
+            result = simulation2.execute_round()
+            round_after = simulation2.round_number
+
+            self.assertFalse(result, f"Battle should not continue on attempt {i+1}")
+            self.assertEqual(round_before, round_after,
+                           f"Round number should not change on attempt {i+1}")
+
+        # Test case 4: Normal combat should increment properly
+        healthy_a = [Ship("Healthy A", offensive_power=1, defensive_power=0.0, staying_power=2)]
+        healthy_b = [Ship("Healthy B", offensive_power=1, defensive_power=0.0, staying_power=2)]
+
+        simulation3 = SalvoCombatModel(healthy_a, healthy_b, random_seed=42)
+
+        initial_round = simulation3.round_number
+        result = simulation3.execute_round()
+
+        # This should actually increment since combat occurs
+        if result:  # If battle continues
+            self.assertEqual(simulation3.round_number, initial_round + 1,
+                           "Round number should increment when actual combat occurs")
+            self.assertEqual(len(simulation3.battle_log), 1,
+                           "One round should be logged when combat occurs")
+
 
 if __name__ == '__main__':
     unittest.main()
