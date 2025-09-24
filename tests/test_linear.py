@@ -77,6 +77,17 @@ class TestLanchesterLinear(unittest.TestCase):
         self.assertEqual(winner, 'Draw')
         self.assertEqual(remaining, 0)
 
+    def test_elimination_time_tolerance(self):
+        """Regression: treat floating near-ties as draws."""
+        alpha = np.nextafter(0.3, 0.4)
+        battle = LanchesterLinear(A0=10, B0=15, alpha=alpha, beta=0.2)
+
+        winner, remaining, t_end = battle.calculate_battle_outcome()
+
+        self.assertEqual(winner, 'Draw')
+        self.assertEqual(remaining, 0)
+        self.assertAlmostEqual(t_end, 50.0, places=9)
+
     def test_edge_cases(self):
         """Test edge cases with zero effectiveness."""
         # Zero effectiveness for A - A can't damage B, but B can damage A

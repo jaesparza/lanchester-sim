@@ -19,6 +19,8 @@ class LanchesterLinear:
     SIMPLE_TIME_EXTENSION = 1.5      # 50% time extension for simple analytical solution (needs more padding for linear trajectories)
     SIMPLE_MINIMUM_TIME = 2.0        # Minimum visualization time for simple solution to show force dynamics clearly
     LARGE_TIME_THRESHOLD = 1e15      # Times above this are treated as effectively infinite for numerical stability
+    ELIMINATION_TIME_REL_TOL = 1e-12 # Relative tolerance when comparing elimination times (prevents floating tie flips)
+    ELIMINATION_TIME_ABS_TOL = 1e-9  # Absolute tolerance for near-zero time comparisons
 
     def __init__(self, A0, B0, alpha, beta):
         """
@@ -65,30 +67,32 @@ class LanchesterLinear:
         t_B_eliminated = self.B0 / self.alpha if self.alpha > 0 else np.inf
 
         # Battle ends when first force is eliminated
-        t_end = min(t_A_eliminated, t_B_eliminated)
+        times_equal = np.isclose(
+            t_A_eliminated,
+            t_B_eliminated,
+            rtol=self.ELIMINATION_TIME_REL_TOL,
+            atol=self.ELIMINATION_TIME_ABS_TOL
+        )
+
+        if times_equal:
+            t_end = max(t_A_eliminated, t_B_eliminated)
+            winner = 'Draw'
+            if np.isinf(t_end):
+                remaining_strength = max(self.A0, self.B0)
+            else:
+                remaining_strength = 0.0
+        elif t_A_eliminated < t_B_eliminated:
+            t_end = t_A_eliminated
+            winner = 'B'
+            remaining_strength = max(0.0, self.B0 - self.alpha * t_end)
+        else:
+            t_end = t_B_eliminated
+            winner = 'A'
+            remaining_strength = max(0.0, self.A0 - self.beta * t_end)
 
         # Treat extremely large finite times as infinite for numerical stability
         if np.isfinite(t_end) and t_end > self.LARGE_TIME_THRESHOLD:
             t_end = np.inf
-
-        # Determine winner
-        if t_A_eliminated < t_B_eliminated:
-            winner = 'B'
-            remaining_strength = self.B0 - self.alpha * t_end
-        elif t_B_eliminated < t_A_eliminated:
-            winner = 'A'
-            remaining_strength = self.A0 - self.beta * t_end
-        else:
-            winner = 'Draw'
-            # Special case: when both elimination times are infinite (α=0 and β=0),
-            # no attrition occurs, so remaining_strength should reflect survival
-            if np.isinf(t_end):
-                # In infinite stalemate, forces can't damage each other
-                # Convention: report the larger force as "remaining" for draw scenarios
-                remaining_strength = max(self.A0, self.B0)
-            else:
-                # Finite simultaneous elimination
-                remaining_strength = 0
 
         return winner, remaining_strength, t_end
 
