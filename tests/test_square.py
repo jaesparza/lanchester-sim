@@ -1650,5 +1650,77 @@ class TestLanchesterSquare(unittest.TestCase):
         self.assertEqual(boundary_time, 1e15,
                         msg="Threshold should be 1e15 for consistency")
 
+    def test_hyperbolic_solver_overflow_fix_regression(self):
+        """Regression test for hyperbolic solver overflow in long horizons.
+
+        Previously, _stable_hyperbolic_solution would overflow for large gamma*t values
+        when computing exp_pos = 1.0 / exp_neg, causing RuntimeWarnings and inf values.
+        The fix uses limiting behavior when gamma*t > 1.0 to prevent overflow and
+        maintain physical trajectories.
+        """
+        import warnings
+        import numpy as np
+
+        # Test case that previously caused overflow with extreme effectiveness values
+        model = LanchesterSquare(A0=100, B0=80, alpha=1e8, beta=1e8)
+        gamma = np.sqrt(1e8 * 1e8)  # 1e8
+
+        # Capture any runtime warnings that would indicate overflow issues
+        with warnings.catch_warnings(record=True) as warning_list:
+            warnings.simplefilter("always")
+
+            # Test the hyperbolic solver directly with values that trigger the fix
+            test_times = np.array([0, 5e-9, 1e-8, 2e-8])  # gamma*t = [0, 0.5, 1.0, 2.0]
+            A_vals, B_vals = model._stable_hyperbolic_solution(test_times)
+
+            # Test the full solution which uses the hyperbolic solver internally
+            solution = model.analytical_solution()
+
+        # Verify no overflow warnings were generated
+        overflow_warnings = [w for w in warning_list if 'overflow' in str(w.message).lower()
+                           or 'invalid' in str(w.message).lower()]
+        self.assertEqual(len(overflow_warnings), 0,
+                        "Should not generate overflow warnings with the fix")
+
+        # Verify trajectory values are finite and physical
+        self.assertFalse(np.any(np.isinf(A_vals)), "A values should be finite")
+        self.assertFalse(np.any(np.isinf(B_vals)), "B values should be finite")
+        self.assertFalse(np.any(A_vals < 0), "A values should be non-negative")
+        self.assertFalse(np.any(B_vals < 0), "B values should be non-negative")
+
+        # Verify solution trajectories are also finite and physical
+        self.assertFalse(np.any(np.isinf(solution['A'])), "Solution A should be finite")
+        self.assertFalse(np.any(np.isinf(solution['B'])), "Solution B should be finite")
+        self.assertFalse(np.any(solution['A'] < 0), "Solution A should be non-negative")
+        self.assertFalse(np.any(solution['B'] < 0), "Solution B should be non-negative")
+
+        # Verify limiting behavior gives sensible results
+        # For large times, the stronger force (A) should approach its final strength
+        invariant = 1e8 * 100**2 - 1e8 * 80**2  # = 3.6e11
+        expected_final_A = np.sqrt(invariant / 1e8)  # = 60.0
+
+        # Test the limiting behavior directly
+        large_time = np.array([1e-6])  # gamma*t = 100 >> 1
+        A_limit, B_limit = model._stable_hyperbolic_solution(large_time)
+
+        self.assertAlmostEqual(A_limit[0], expected_final_A, places=1,
+                              msg="Large time A should approach final strength")
+        self.assertAlmostEqual(B_limit[0], 0.0, places=1,
+                              msg="Large time B should approach zero")
+
+        # Verify the threshold logic works correctly
+        # Values at gamma*t <= 1.0 should use safe computation
+        # Values at gamma*t > 1.0 should use limiting behavior
+        safe_time = np.array([1e-8])    # gamma*t = 1.0 (boundary)
+        A_safe, B_safe = model._stable_hyperbolic_solution(safe_time)
+
+        # Safe computation should give intermediate values
+        self.assertGreater(A_safe[0], expected_final_A, "Safe A should be > final A")
+        self.assertGreater(B_safe[0], 0, "Safe B should be > 0")
+
+        # Test mathematical consistency: battle outcome should be reasonable
+        self.assertEqual(solution['winner'], 'A', "A should win with superior numbers")
+        self.assertAlmostEqual(solution['remaining_strength'], expected_final_A, places=1)
+
 if __name__ == '__main__':
     unittest.main()
