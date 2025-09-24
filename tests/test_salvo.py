@@ -8,7 +8,9 @@ Tests core functionality of discrete round combat simulation:
 - Salvo allocation and damage distribution
 """
 
+import io
 import unittest
+from contextlib import redirect_stdout
 from unittest import mock
 from models import SalvoCombatModel, Ship
 
@@ -544,6 +546,35 @@ class TestSalvoCombatModel(unittest.TestCase):
                          msg="Fractional offensive power should fire one missile with seeded RNG")
         self.assertEqual(distribution, [1],
                          msg="Single defender should receive the single missile")
+
+    def test_simple_simulation_zero_offense_survivors(self):
+        """Simplified path should succeed when the defender cannot attack."""
+        force_a = [Ship("Gunboat", offensive_power=10, defensive_power=0.3, staying_power=3)]
+        # Slightly different defensive power to stay within similarity threshold
+        force_b = [Ship("Carrier", offensive_power=0.0, defensive_power=0.31, staying_power=5)]
+
+        model = SalvoCombatModel(force_a=force_a, force_b=force_b, random_seed=7)
+        result = model.simple_simulation(quiet=True)
+
+        self.assertEqual(result['method'], 'simplified')
+        self.assertEqual(result['outcome'], 'Force A Victory')
+        self.assertEqual(result['force_a_survivors'], len(force_a))
+        self.assertEqual(result['force_b_survivors'], 0)
+
+    def test_run_simulation_logs_final_round(self):
+        """run_simulation should print the decisive round even when the battle ends immediately."""
+        force_a = [Ship("Destroyer", offensive_power=12, defensive_power=0.2, staying_power=4)]
+        force_b = [Ship("Frigate", offensive_power=4, defensive_power=0.1, staying_power=1)]
+
+        model = SalvoCombatModel(force_a=force_a, force_b=force_b, random_seed=11)
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            model.run_simulation(max_rounds=5, quiet=False)
+
+        output = buffer.getvalue()
+        self.assertIn("Round 1:", output)
+        self.assertIn("BATTLE RESULT", output)
 
 
 if __name__ == '__main__':

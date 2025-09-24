@@ -276,8 +276,17 @@ class SalvoCombatModel:
                     'reason': 'low_attrition_fallback'
                 }
 
+            # Handle cases where one force cannot attack at all to avoid NaNs
+            if total_b_offensive <= 0 and total_a_offensive > 0:
+                winner = "Force A Victory"
+                estimated_survivors_a = effectiveness_a['operational_count']
+                estimated_survivors_b = 0
+            elif total_a_offensive <= 0 and total_b_offensive > 0:
+                winner = "Force B Victory"
+                estimated_survivors_a = 0
+                estimated_survivors_b = effectiveness_b['operational_count']
             # Determine winner based on total effectiveness
-            if total_a_offensive > total_b_offensive:
+            elif total_a_offensive > total_b_offensive:
                 winner = "Force A Victory"
                 # Estimate survivors based on offensive advantage
                 advantage_ratio = total_a_offensive / total_b_offensive if total_b_offensive > 0 else float('inf')
@@ -470,13 +479,18 @@ class SalvoCombatModel:
             print("\n" + "="*50)
 
         # Execute battle rounds
-        while self.execute_round() and self.round_number < max_rounds:
-            # Print round summary
-            if not quiet:
+        while self.round_number < max_rounds:
+            ongoing = self.execute_round()
+
+            # Print round summary for the round that just completed
+            if not quiet and self.battle_log and self.battle_log[-1]['round'] == self.round_number:
                 round_log = self.battle_log[-1]
                 print(f"\nRound {round_log['round']}:")
                 for event in round_log['events']:
                     print(f"  {event}")
+
+            if not ongoing:
+                break
 
         # Get comprehensive battle statistics using helper method
         final_stats = self.get_battle_statistics()
