@@ -21,6 +21,11 @@ class LanchesterSquare:
     CURVE_EXPONENT = 0.7             # Exponent for curved force decrease in simple solution. Creates realistic non-linear casualty patterns where initial losses are slower, then accelerate.
     LARGE_TIME_THRESHOLD = 1e15      # Times above this are treated as effectively infinite for numerical stability
     ARCTANH_CLIP = 1.0 - 1e-12       # Clamp argument to keep it within open interval (-1, 1)
+
+    # Constants for plotting and visualization
+    PLOT_GRID_ALPHA = 0.3            # Grid transparency for clear visibility without overwhelming data
+    PLOT_TEXT_Y_POSITION = 0.98      # Y position for info text in plot (top-right corner)
+    PLOT_Y_AXIS_PADDING = 1.1        # Y-axis scaling factor to provide visual padding above maximum values
     
     def __init__(self, A0, B0, alpha, beta):
         """
@@ -552,16 +557,16 @@ class LanchesterSquare:
         ax.set_ylabel('Force Strength')
         ax.set_title(f"{title}\nα={self.alpha}, β={self.beta}")
         ax.legend()
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, alpha=self.PLOT_GRID_ALPHA)
         ax.set_xlim(0, max(solution['time']))
-        ax.set_ylim(0, max(self.A0, self.B0) * 1.1)
+        ax.set_ylim(0, max(self.A0, self.B0) * self.PLOT_Y_AXIS_PADDING)
 
         # Add winner annotation and correct Square Law advantage calculation
         # Show actual effective combat power: α×A₀² vs β×B₀²
         alpha_advantage = self.alpha * self.A0**2
         beta_advantage = self.beta * self.B0**2
         info_text = f"Winner: {solution['winner']}\nSquare Law Advantage: α×A₀²={alpha_advantage:.0f} vs β×B₀²={beta_advantage:.0f}"
-        ax.text(0.02, 0.98, info_text,
+        ax.text(0.02, self.PLOT_TEXT_Y_POSITION, info_text,
                 transform=ax.transAxes, fontsize=11,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightblue'))
 

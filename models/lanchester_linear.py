@@ -22,6 +22,11 @@ class LanchesterLinear:
     ELIMINATION_TIME_REL_TOL = 1e-12 # Relative tolerance when comparing elimination times (prevents floating tie flips)
     ELIMINATION_TIME_ABS_TOL = 1e-9  # Absolute tolerance for near-zero time comparisons
 
+    # Constants for plotting and visualization
+    PLOT_GRID_ALPHA = 0.3            # Grid transparency for clear visibility without overwhelming data
+    PLOT_TEXT_Y_POSITION = 0.98      # Y position for info text in plot (top-right corner)
+    PLOT_Y_AXIS_PADDING = 1.1        # Y-axis scaling factor to provide visual padding above maximum values
+
     def __init__(self, A0, B0, alpha, beta):
         """
         Initialize the combat scenario.
@@ -234,14 +239,14 @@ class LanchesterLinear:
         ax.set_ylabel('Force Strength')
         ax.set_title(f"{title}\nα={self.alpha}, β={self.beta}")
         ax.legend()
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, alpha=self.PLOT_GRID_ALPHA)
         ax.set_xlim(0, max(solution['time']))
-        ax.set_ylim(0, max(self.A0, self.B0) * 1.1)
+        ax.set_ylim(0, max(self.A0, self.B0) * self.PLOT_Y_AXIS_PADDING)
 
         # Add winner annotation and Linear Law insight
         linear_advantage = self.alpha * self.A0 - self.beta * self.B0
         info_text = f"Winner: {solution['winner']}\nLinear Law Advantage: α{self.A0:.0f} - β{self.B0:.0f} = {linear_advantage:.2f}"
-        ax.text(0.02, 0.98, info_text,
+        ax.text(0.02, self.PLOT_TEXT_Y_POSITION, info_text,
                 transform=ax.transAxes, fontsize=11,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightgreen'))
 

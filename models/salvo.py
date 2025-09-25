@@ -66,6 +66,11 @@ class SalvoCombatModel:
     DEFENSIVE_EFFECTIVENESS_FACTOR = 1.0  # Multiplier for defensive calculations (allows tuning)
     FORCE_EFFECTIVENESS_TOLERANCE = 0.01   # Tolerance for comparing force effectiveness (1% difference)
     HIT_DISTRIBUTION_RANDOMNESS = 0.2   # Factor for randomness in hit distribution (0-1)
+
+    # Constants for plotting and visualization
+    PLOT_GRID_ALPHA = 0.3            # Grid transparency for clear visibility without overwhelming data
+    PLOT_TEXT_Y_POSITION = 0.98      # Y position for info text in plot (top-right corner)
+    PLOT_Y_AXIS_PADDING = 1.1        # Y-axis scaling factor to provide visual padding above maximum values
     
     def __init__(self, force_a: List[Ship], force_b: List[Ship], random_seed: Optional[int] = None):
         self.force_a = force_a
@@ -544,9 +549,9 @@ class SalvoCombatModel:
         ax.set_ylabel('Active Ships')
         ax.set_title(f"{title}")
         ax.legend()
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, alpha=self.PLOT_GRID_ALPHA)
         ax.set_xlim(0, max(rounds) if rounds else 1)
-        ax.set_ylim(0, max(initial_a, initial_b) * 1.1)
+        ax.set_ylim(0, max(initial_a, initial_b) * self.PLOT_Y_AXIS_PADDING)
 
         # Enhanced winner annotation with Salvo Model insights
         stats = self.get_battle_statistics()
@@ -557,7 +562,7 @@ class SalvoCombatModel:
         initial_b_offensive = sum(ship.offensive_power for ship in self.force_b)
 
         info_text = f"Winner: {winner.split(' - ')[0] if ' - ' in winner else winner}\nSalvo Advantage: OP({initial_a_offensive:.0f}) vs OP({initial_b_offensive:.0f})"
-        ax.text(0.02, 0.98, info_text,
+        ax.text(0.02, self.PLOT_TEXT_Y_POSITION, info_text,
                 transform=ax.transAxes, fontsize=11,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightcoral'))
 
