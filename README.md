@@ -1,4 +1,9 @@
-# Combat simulation models
+<div align="center">
+<img src="images/icon.png" alt="logo" width="300" />
+  <br>
+  <b>Lanchester combat</b> • <b>Naval salvo exchanges</b> • <b>Missile engagements</b>
+  <br>
+</div>
 
 Scripts for simulating and analyzing military engagements using classical combat models. This repository implements three foundational approaches to quantitative battle analysis, each suited for different combat scenarios and providing unique strategic insights.
 
