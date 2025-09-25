@@ -96,6 +96,8 @@ class LanchesterLinearODESolver:
             times = np.asarray(sample_times, dtype=float)
             if times.ndim != 1 or times.size == 0:
                 raise ValueError("sample_times must be a one-dimensional array with at least one entry")
+            if np.any(times < 0):
+                raise ValueError("sample_times must be non-negative")
             if np.any(np.diff(times) < 0):
                 raise ValueError("sample_times must be monotonically increasing")
             return times
@@ -155,31 +157,53 @@ class LanchesterLinearODESolver:
         force_a = np.clip(forces[:, 0], 0.0, None)
         force_b = np.clip(forces[:, 1], 0.0, None)
 
+        # Find when either force is eliminated
         elimination_mask = (force_a <= self.ZERO_TOLERANCE) | (force_b <= self.ZERO_TOLERANCE)
         elimination_indices = np.where(elimination_mask)[0]
+
         if elimination_indices.size:
-            t_end = float(times[elimination_indices[0]])
-        else:
-            t_end = float(times[-1])
+            # Battle ends when first force is eliminated
+            elimination_idx = elimination_indices[0]
+            t_end = float(times[elimination_idx])
 
-        final_a = float(force_a[-1])
-        final_b = float(force_b[-1])
+            # Determine winner based on which force survived at elimination time
+            a_at_end = float(force_a[elimination_idx])
+            b_at_end = float(force_b[elimination_idx])
 
-        if final_a <= self.ZERO_TOLERANCE and final_b <= self.ZERO_TOLERANCE:
-            winner = "Draw"
-            remaining = 0.0 if np.isfinite(t_end) else max(self.A0, self.B0)
-        elif final_a <= self.ZERO_TOLERANCE:
-            winner = "B"
-            remaining = final_b
-        elif final_b <= self.ZERO_TOLERANCE:
-            winner = "A"
-            remaining = final_a
-        else:
-            if self.alpha <= self.ZERO_TOLERANCE and self.beta <= self.ZERO_TOLERANCE:
+            if a_at_end <= self.ZERO_TOLERANCE and b_at_end <= self.ZERO_TOLERANCE:
                 winner = "Draw"
+                remaining = 0.0
+            elif a_at_end <= self.ZERO_TOLERANCE:
+                winner = "B"
+                remaining = b_at_end
+            elif b_at_end <= self.ZERO_TOLERANCE:
+                winner = "A"
+                remaining = a_at_end
             else:
-                winner = "Ongoing"
-            remaining = max(final_a, final_b)
+                # Should not happen if elimination_mask is correct
+                winner = "Draw"
+                remaining = 0.0
+        else:
+            # No elimination detected in simulation time
+            t_end = float(times[-1])
+            final_a = float(force_a[-1])
+            final_b = float(force_b[-1])
+
+            if self.alpha <= self.ZERO_TOLERANCE and self.beta <= self.ZERO_TOLERANCE:
+                # No attrition - draw with larger force surviving
+                winner = "Draw"
+                remaining = max(final_a, final_b)
+            else:
+                # Battle ongoing - determine winner based on analytical solution
+                analytical_winner, analytical_remaining, analytical_t_end = self.calculate_battle_outcome()
+                if np.isfinite(analytical_t_end) and analytical_t_end > t_end:
+                    # Battle will end later - return ongoing status
+                    winner = analytical_winner
+                    remaining = analytical_remaining
+                else:
+                    # Battle should have ended - use analytical result
+                    winner = analytical_winner
+                    remaining = analytical_remaining
 
         return LinearODESolution(times, force_a, force_b, winner, t_end, remaining)
 
@@ -230,6 +254,8 @@ class LanchesterLinearODESolver:
             raise ValueError("time array must be one-dimensional")
         if time_array.size == 0:
             return np.array([], dtype=float), np.array([], dtype=float)
+        if np.any(time_array < 0):
+            raise ValueError("time array must be non-negative")
         if np.any(np.diff(time_array) < 0):
             raise ValueError("time array must be monotonically increasing")
 

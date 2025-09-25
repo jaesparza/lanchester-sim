@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tests.test_linear import TestLanchesterLinear
 from tests.test_square import TestLanchesterSquare
 from tests.test_salvo import TestSalvoCombatModel
+from tests.test_ode_solver_linear import TestLanchesterLinearODESolver, TestConsistencyWithAnalytical, TestEdgeCasesAndErrorConditions
 
 
 def run_all_tests():
@@ -26,6 +27,9 @@ def run_all_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestLanchesterLinear))
     suite.addTests(loader.loadTestsFromTestCase(TestLanchesterSquare))
     suite.addTests(loader.loadTestsFromTestCase(TestSalvoCombatModel))
+    suite.addTests(loader.loadTestsFromTestCase(TestLanchesterLinearODESolver))
+    suite.addTests(loader.loadTestsFromTestCase(TestConsistencyWithAnalytical))
+    suite.addTests(loader.loadTestsFromTestCase(TestEdgeCasesAndErrorConditions))
 
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2, stream=sys.stdout)
