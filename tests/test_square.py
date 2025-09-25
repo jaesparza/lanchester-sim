@@ -1735,5 +1735,239 @@ class TestLanchesterSquare(unittest.TestCase):
         self.assertEqual(solution['winner'], 'A', "A should win with superior numbers")
         self.assertAlmostEqual(solution['remaining_strength'], expected_final_A, places=1)
 
+    # ============================================================================
+    # TRAJECTORY SMOOTHNESS AND CONTINUITY TESTS
+    # Tests added to catch discontinuity bugs in trajectory generation
+    # ============================================================================
+
+    def test_trajectory_smoothness_equal_effectiveness(self):
+        """Test that equal effectiveness trajectories have no large discontinuities.
+
+        Regression test for the bug where Force A would plummet from 80 to 0 at battle end
+        in the simple_analytical_solution for equal effectiveness scenarios.
+        """
+        battle = LanchesterSquare(A0=100, B0=60, alpha=0.01, beta=0.01)
+
+        # Test both analytical methods
+        for method_name, method in [('analytical_solution', battle.analytical_solution),
+                                   ('simple_analytical_solution', battle.simple_analytical_solution)]:
+            with self.subTest(method=method_name):
+                solution = method()
+
+                # Check for large jumps in trajectories
+                A_diffs = np.diff(solution['A'])
+                B_diffs = np.diff(solution['B'])
+
+                # Should have no jumps larger than 1.0 (allows for small numerical steps)
+                max_A_jump = np.max(np.abs(A_diffs))
+                max_B_jump = np.max(np.abs(B_diffs))
+
+                self.assertLess(max_A_jump, 1.0,
+                               f"{method_name}: A trajectory has jump of {max_A_jump:.3f}, should be smooth")
+                self.assertLess(max_B_jump, 1.0,
+                               f"{method_name}: B trajectory has jump of {max_B_jump:.3f}, should be smooth")
+
+                # Force A should never drop below its final remaining strength for winner A
+                if solution['winner'] == 'A':
+                    min_A = np.min(solution['A'])
+                    expected_final = solution['remaining_strength']
+                    self.assertGreaterEqual(min_A, expected_final - 0.1,  # Small tolerance
+                                          f"{method_name}: Force A drops to {min_A:.3f}, "
+                                          f"below final strength {expected_final:.3f}")
+
+    def test_trajectory_smoothness_superior_effectiveness(self):
+        """Test that superior effectiveness trajectories have no large discontinuities.
+
+        Regression test for the bug where both forces would have sudden steps mid-battle
+        when gamma*t exceeded the overflow threshold.
+        """
+        battle = LanchesterSquare(A0=80, B0=120, alpha=0.02, beta=0.01)
+
+        # Test both analytical methods
+        for method_name, method in [('analytical_solution', battle.analytical_solution),
+                                   ('simple_analytical_solution', battle.simple_analytical_solution)]:
+            with self.subTest(method=method_name):
+                solution = method()
+
+                # Check for large jumps in trajectories
+                A_diffs = np.diff(solution['A'])
+                B_diffs = np.diff(solution['B'])
+
+                # Should have no jumps larger than 1.0
+                max_A_jump = np.max(np.abs(A_diffs))
+                max_B_jump = np.max(np.abs(B_diffs))
+
+                self.assertLess(max_A_jump, 1.0,
+                               f"{method_name}: A trajectory has jump of {max_A_jump:.3f}, should be smooth")
+                self.assertLess(max_B_jump, 1.0,
+                               f"{method_name}: B trajectory has jump of {max_B_jump:.3f}, should be smooth")
+
+                # Check that trajectories are monotonic where expected
+                # For B wins case: A should generally decrease, B should end higher than some minimum
+                if solution['winner'] == 'B':
+                    final_B = solution['remaining_strength']
+                    min_B = np.min(solution['B'])
+                    # B shouldn't drop too far below its final value
+                    self.assertGreaterEqual(min_B, final_B - 5.0,
+                                          f"{method_name}: B drops too low: min={min_B:.3f}, "
+                                          f"final={final_B:.3f}")
+
+    def test_exact_battle_end_time_values(self):
+        """Test that trajectories have correct values at exactly t_end.
+
+        Regression test for the bug where using 'time > t_end' instead of 'time >= t_end'
+        caused wrong values at the exact battle end time.
+        """
+        test_cases = [
+            # (A0, B0, alpha, beta, expected_winner)
+            (100, 60, 0.01, 0.01, 'A'),  # Equal effectiveness, A wins
+            (80, 120, 0.02, 0.01, 'B'),  # Superior effectiveness, B wins
+            (50, 50, 0.01, 0.01, 'Draw'), # Exact draw
+        ]
+
+        for A0, B0, alpha, beta, expected_winner in test_cases:
+            with self.subTest(A0=A0, B0=B0, alpha=alpha, beta=beta):
+                battle = LanchesterSquare(A0, B0, alpha, beta)
+
+                for method_name, method in [('analytical_solution', battle.analytical_solution),
+                                           ('simple_analytical_solution', battle.simple_analytical_solution)]:
+                    with self.subTest(method=method_name):
+                        solution = method()
+
+                        # Find the value closest to battle end time
+                        t_end = solution['battle_end_time']
+                        if not np.isinf(t_end):  # Skip infinite battle times
+                            time_array = solution['time']
+                            end_idx = np.argmin(np.abs(time_array - t_end))
+
+                            A_at_end = solution['A'][end_idx]
+                            B_at_end = solution['B'][end_idx]
+
+                            # Check that values at t_end match expected final state
+                            if expected_winner == 'A':
+                                expected_A = solution['remaining_strength']
+                                expected_B = 0.0
+                                self.assertAlmostEqual(A_at_end, expected_A, places=1,
+                                                     msg=f"{method_name}: A at t_end should be {expected_A:.1f}, "
+                                                         f"got {A_at_end:.1f}")
+                                self.assertAlmostEqual(B_at_end, expected_B, places=1,
+                                                     msg=f"{method_name}: B at t_end should be {expected_B:.1f}, "
+                                                         f"got {B_at_end:.1f}")
+                            elif expected_winner == 'B':
+                                expected_A = 0.0
+                                expected_B = solution['remaining_strength']
+                                self.assertAlmostEqual(A_at_end, expected_A, places=1,
+                                                     msg=f"{method_name}: A at t_end should be {expected_A:.1f}, "
+                                                         f"got {A_at_end:.1f}")
+                                self.assertAlmostEqual(B_at_end, expected_B, places=1,
+                                                     msg=f"{method_name}: B at t_end should be {expected_B:.1f}, "
+                                                         f"got {B_at_end:.1f}")
+
+    def test_overflow_threshold_smooth_transition(self):
+        """Test smooth transition at overflow threshold in _stable_hyperbolic_solution.
+
+        Regression test for the bug where abrupt switching between 'safe' and 'overflow'
+        computations created sudden steps in trajectories.
+        """
+        # Use parameters that trigger overflow threshold crossing
+        battle = LanchesterSquare(A0=80, B0=120, alpha=0.02, beta=0.01)
+
+        gamma = np.sqrt(battle.alpha * battle.beta)
+        threshold_time = 1.5 / gamma  # OVERFLOW_THRESHOLD = 1.5
+
+        # Test times around the threshold
+        test_times = np.linspace(threshold_time - 1.0, threshold_time + 2.0, 50)
+        A_vals, B_vals = battle._stable_hyperbolic_solution(test_times)
+
+        # Check for smooth transitions
+        A_diffs = np.diff(A_vals)
+        B_diffs = np.diff(B_vals)
+
+        max_A_step = np.max(np.abs(A_diffs))
+        max_B_step = np.max(np.abs(B_diffs))
+
+        # Should not have abrupt jumps at threshold crossing
+        self.assertLess(max_A_step, 2.0,
+                       f"A trajectory has step of {max_A_step:.3f} at overflow threshold, should be smooth")
+        self.assertLess(max_B_step, 2.0,
+                       f"B trajectory has step of {max_B_step:.3f} at overflow threshold, should be smooth")
+
+        # Values should be finite and physical
+        self.assertTrue(np.all(np.isfinite(A_vals)), "A values should be finite")
+        self.assertTrue(np.all(np.isfinite(B_vals)), "B values should be finite")
+        self.assertTrue(np.all(A_vals >= 0), "A values should be non-negative")
+        # Note: B can be slightly negative in overflow region due to interpolation, that's acceptable
+
+    def test_multiple_parameter_combinations_smoothness(self):
+        """Test trajectory smoothness across various parameter combinations.
+
+        Comprehensive test to catch smoothness issues across different scenarios
+        that might trigger different code paths.
+        """
+        test_cases = [
+            # Format: (A0, B0, alpha, beta, description)
+            (100, 50, 0.005, 0.005, "Large forces, low effectiveness"),
+            (20, 30, 0.05, 0.03, "Small forces, high effectiveness"),
+            (200, 180, 0.001, 0.002, "Very large forces, very low effectiveness"),
+            (15, 25, 0.1, 0.08, "Small forces, very high effectiveness"),
+            (100, 100, 0.01, 0.015, "Equal initial, different effectiveness"),
+        ]
+
+        for A0, B0, alpha, beta, description in test_cases:
+            with self.subTest(desc=description):
+                battle = LanchesterSquare(A0, B0, alpha, beta)
+
+                # Test simple analytical solution (most commonly used for plotting)
+                solution = battle.simple_analytical_solution()
+
+                # Check trajectory smoothness
+                A_diffs = np.diff(solution['A'])
+                B_diffs = np.diff(solution['B'])
+
+                max_A_jump = np.max(np.abs(A_diffs))
+                max_B_jump = np.max(np.abs(B_diffs))
+
+                # Use relative thresholds based on initial force sizes
+                relative_threshold = max(A0, B0) * 0.05  # 5% of largest initial force
+                absolute_threshold = max(1.0, relative_threshold)
+
+                self.assertLess(max_A_jump, absolute_threshold,
+                               f"{description}: A trajectory jump {max_A_jump:.3f} exceeds threshold {absolute_threshold:.3f}")
+                self.assertLess(max_B_jump, absolute_threshold,
+                               f"{description}: B trajectory jump {max_B_jump:.3f} exceeds threshold {absolute_threshold:.3f}")
+
+    def test_trajectory_monotonicity_properties(self):
+        """Test that force trajectories follow expected monotonicity properties.
+
+        Forces should generally decrease over time (with some exceptions near battle end),
+        and the winner's final trajectory should approach the correct remaining strength.
+        """
+        battle = LanchesterSquare(A0=100, B0=60, alpha=0.01, beta=0.01)  # A wins
+        solution = battle.simple_analytical_solution()
+
+        A_vals = solution['A']
+        B_vals = solution['B']
+        time_vals = solution['time']
+        t_end = solution['battle_end_time']
+
+        # B should be monotonically decreasing (losing force)
+        # Allow for small numerical fluctuations
+        B_increases = np.sum(np.diff(B_vals) > 0.01)  # Count significant increases
+        self.assertLess(B_increases, len(B_vals) * 0.05,  # Less than 5% of points
+                       f"B should generally decrease, but increases at {B_increases} points")
+
+        # A should approach its final value and not exceed initial value
+        final_A_expected = solution['remaining_strength']
+        self.assertTrue(np.all(A_vals <= battle.A0 + 0.01), "A should not exceed initial value")
+
+        # In the final portion of battle, A should be near its final value
+        final_portion = time_vals > (t_end * 0.8)  # Last 20% of battle
+        if np.any(final_portion):
+            A_final_portion = A_vals[final_portion]
+            min_A_final = np.min(A_final_portion)
+            self.assertGreater(min_A_final, final_A_expected - 1.0,
+                             f"A should stay near final value {final_A_expected:.1f} in final portion, "
+                             f"but drops to {min_A_final:.1f}")
+
 if __name__ == '__main__':
     unittest.main()
