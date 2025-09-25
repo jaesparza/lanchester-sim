@@ -1969,5 +1969,42 @@ class TestLanchesterSquare(unittest.TestCase):
                              f"A should stay near final value {final_A_expected:.1f} in final portion, "
                              f"but drops to {min_A_final:.1f}")
 
+    def test_infinite_parameter_validation(self):
+        """Test that infinite parameters are properly rejected.
+
+        Infinite effectiveness coefficients or initial strengths cause numerical
+        instability (NaN results, empty trajectories). This validation prevents
+        such issues by requiring finite inputs.
+        """
+        # Test infinite alpha
+        with self.assertRaises(ValueError) as context:
+            LanchesterSquare(A0=100, B0=60, alpha=float('inf'), beta=0.3)
+        self.assertIn("Alpha", str(context.exception))
+        self.assertIn("infinite", str(context.exception))
+
+        # Test infinite beta
+        with self.assertRaises(ValueError) as context:
+            LanchesterSquare(A0=100, B0=60, alpha=0.3, beta=float('inf'))
+        self.assertIn("Beta", str(context.exception))
+        self.assertIn("infinite", str(context.exception))
+
+        # Test infinite A0
+        with self.assertRaises(ValueError) as context:
+            LanchesterSquare(A0=float('inf'), B0=60, alpha=0.3, beta=0.2)
+        self.assertIn("A0", str(context.exception))
+        self.assertIn("infinite", str(context.exception))
+
+        # Test infinite B0
+        with self.assertRaises(ValueError) as context:
+            LanchesterSquare(A0=100, B0=float('inf'), alpha=0.3, beta=0.2)
+        self.assertIn("B0", str(context.exception))
+        self.assertIn("infinite", str(context.exception))
+
+        # Verify that large finite values still work
+        battle = LanchesterSquare(A0=100, B0=60, alpha=1e10, beta=0.3)
+        result = battle.calculate_battle_outcome()
+        self.assertEqual(result[0], 'A')  # A should win with overwhelming advantage
+        self.assertTrue(np.isfinite(result[1]))  # Remaining strength should be finite
+
 if __name__ == '__main__':
     unittest.main()

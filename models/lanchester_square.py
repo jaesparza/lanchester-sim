@@ -25,10 +25,10 @@ class LanchesterSquare:
     def __init__(self, A0, B0, alpha, beta):
         """
         Initialize the combat scenario.
-        
+
         Parameters:
         A0 (float): Initial strength of force A
-        B0 (float): Initial strength of force B  
+        B0 (float): Initial strength of force B
         alpha (float): Effectiveness coefficient of A against B
         beta (float): Effectiveness coefficient of B against A
         """
@@ -36,6 +36,18 @@ class LanchesterSquare:
             raise ValueError("Initial strengths must be non-negative.")
         if alpha < 0 or beta < 0:
             raise ValueError("Effectiveness coefficients must be non-negative.")
+
+        # Validate against infinite parameters which cause numerical instability
+        if np.isinf(alpha):
+            raise ValueError("Alpha (effectiveness of A against B) cannot be infinite. "
+                           "Use a large finite value instead.")
+        if np.isinf(beta):
+            raise ValueError("Beta (effectiveness of B against A) cannot be infinite. "
+                           "Use a large finite value instead.")
+        if np.isinf(A0):
+            raise ValueError("Initial strength A0 cannot be infinite.")
+        if np.isinf(B0):
+            raise ValueError("Initial strength B0 cannot be infinite.")
         self.A0 = A0
         self.B0 = B0
         self.alpha = alpha
