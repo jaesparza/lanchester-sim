@@ -1,5 +1,5 @@
 <div align="center">
-<img src="images/icon.png" alt="logo" width="300" />
+<img src="images/logo.png" alt="logo" />
   <br>
   <b>Lanchester combat</b> • <b>Naval salvo exchanges</b> • <b>Missile engagements</b>
   <br>
