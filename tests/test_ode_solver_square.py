@@ -94,6 +94,8 @@ class TestLanchesterSquareODESolver(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             solver._prepare_time_array(t_end=t_end, num_points=10, sample_times=np.array([0.0, -1.0]))
+        with self.assertRaises(ValueError):
+            solver._prepare_time_array(t_end=t_end, num_points=10, sample_times=np.array([-1.0, 0.0]))
 
     def test_solve_basic_functionality(self):
         solver = self.solver_a_wins
@@ -113,6 +115,29 @@ class TestLanchesterSquareODESolver(unittest.TestCase):
         custom_times = np.linspace(0.0, 10.0, 21)
         solution = solver.solve(sample_times=custom_times)
         np.testing.assert_array_equal(solution.time, custom_times)
+        self.assertLess(solution.force_a[1], solver.A0)
+
+    def test_solve_with_late_start_samples(self):
+        solver = self.solver_a_wins
+        winner, remaining, invariant = solver.calculate_battle_outcome()
+        analytical_t_end = solver.calculate_battle_end_time(winner, remaining, invariant)
+
+        start_time = analytical_t_end * 0.25
+        custom_times = np.linspace(start_time, analytical_t_end * 0.75, 6)
+        solution = solver.solve(sample_times=custom_times)
+
+        np.testing.assert_array_equal(solution.time, custom_times)
+        self.assertLess(solution.force_a[0], solver.A0)
+
+    def test_t_end_matches_analytical_with_truncated_samples(self):
+        solver = self.solver_a_wins
+        winner, remaining, invariant = solver.calculate_battle_outcome()
+        analytical_t_end = solver.calculate_battle_end_time(winner, remaining, invariant)
+
+        custom_times = np.linspace(0.0, analytical_t_end * 0.5, 5)
+        solution = solver.solve(sample_times=custom_times)
+
+        self.assertAlmostEqual(solution.t_end, analytical_t_end, places=6)
 
     def test_winner_determination(self):
         cases = [
