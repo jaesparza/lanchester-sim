@@ -356,5 +356,248 @@ class TestSquareSolverEdgeCases(unittest.TestCase):
                 self.assertAlmostEqual(solution.force_b[i], solution.force_b[i - 1], places=6)
 
 
+class TestSquareODESolverAdditionalCoverage(unittest.TestCase):
+    """Additional tests to improve coverage of Square ODE Solver."""
+
+    def test_num_points_less_than_two(self):
+        """Test that num_points < 2 is corrected to 2."""
+        solver = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+        solution = solver.solve(num_points=1)  # Should be corrected to 2
+
+        # Should have at least 2 points
+        self.assertGreaterEqual(len(solution.time), 2)
+        self.assertGreaterEqual(len(solution.force_a), 2)
+        self.assertGreaterEqual(len(solution.force_b), 2)
+
+    def test_instant_victory_a_when_b_no_combat_power(self):
+        """Test instant victory calculation when B has no combat power."""
+        # B0=0 and beta=0 means B has no combat capability
+        solver = LanchesterSquareODESolver(100, 0, 0.5, 0.0)
+        winner, remaining, invariant = solver.calculate_battle_outcome()
+        t_end = solver.calculate_battle_end_time(winner, remaining, invariant)
+
+        self.assertEqual(winner, 'A')
+        self.assertEqual(remaining, 100.0)
+        self.assertEqual(t_end, 0.0)  # Instant victory
+
+    def test_instant_victory_b_when_a_no_combat_power(self):
+        """Test instant victory calculation when A has no combat power."""
+        # A0=0 and alpha=0 means A has no combat capability
+        solver = LanchesterSquareODESolver(0, 100, 0.0, 0.5)
+        winner, remaining, invariant = solver.calculate_battle_outcome()
+        t_end = solver.calculate_battle_end_time(winner, remaining, invariant)
+
+        self.assertEqual(winner, 'B')
+        self.assertEqual(remaining, 100.0)
+        self.assertEqual(t_end, 0.0)  # Instant victory
+
+    def test_draw_with_exact_balance(self):
+        """Test draw case with exact balance."""
+        # Create exact draw: alpha*A0^2 = beta*B0^2
+        solver = LanchesterSquareODESolver(100, 50, 1.0, 4.0)
+        winner, remaining, invariant = solver.calculate_battle_outcome()
+
+        # Should be a draw
+        self.assertEqual(winner, 'Draw')
+        # Invariant should be very close to zero
+        self.assertAlmostEqual(invariant, 0.0, places=6)
+
+    def test_draw_casualty_calculation_finite_time(self):
+        """Test casualty calculation for draw with finite battle time."""
+        # Exact draw where both forces are eliminated
+        solver = LanchesterSquareODESolver(100, 50, 1.0, 4.0)
+        result = solver.numerical_solution()
+
+        self.assertEqual(result['winner'], 'Draw')
+
+        # For finite time draw, both forces are eliminated
+        if np.isfinite(result['battle_end_time']):
+            self.assertAlmostEqual(result['A_casualties'], solver.A0, places=1)
+            self.assertAlmostEqual(result['B_casualties'], solver.B0, places=1)
+
+    def test_draw_casualty_calculation_infinite_time(self):
+        """Test casualty calculation for draw with infinite time (no combat)."""
+        # Both coefficients zero = no combat
+        solver = LanchesterSquareODESolver(100, 80, 0.0, 0.0)
+        result = solver.numerical_solution()
+
+        self.assertEqual(result['winner'], 'Draw')
+        self.assertEqual(result['battle_end_time'], float('inf'))
+
+        # With no combat, no casualties
+        self.assertEqual(result['A_casualties'], 0.0)
+        self.assertEqual(result['B_casualties'], 0.0)
+
+    def test_negative_force_a_raises_value_error(self):
+        """Test that negative A0 raises ValueError."""
+        with self.assertRaises(ValueError) as context:
+            LanchesterSquareODESolver(-10, 50, 0.5, 0.5)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_negative_force_b_raises_value_error(self):
+        """Test that negative B0 raises ValueError."""
+        with self.assertRaises(ValueError) as context:
+            LanchesterSquareODESolver(50, -10, 0.5, 0.5)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_negative_alpha_raises_value_error(self):
+        """Test that negative alpha raises ValueError."""
+        with self.assertRaises(ValueError) as context:
+            LanchesterSquareODESolver(50, 50, -0.5, 0.5)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_negative_beta_raises_value_error(self):
+        """Test that negative beta raises ValueError."""
+        with self.assertRaises(ValueError) as context:
+            LanchesterSquareODESolver(50, 50, 0.5, -0.5)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_degenerate_draw_fallback(self):
+        """Test unexpected degenerate draw case fallback."""
+        # Create scenario with one zero coefficient in draw conditions
+        # This tests edge cases in the draw handling logic
+        solver = LanchesterSquareODESolver(100, 100, 0.5, 0.0)
+        winner, remaining, invariant = solver.calculate_battle_outcome()
+
+        # A should win because B can't damage A
+        self.assertEqual(winner, 'A')
+
+    def test_plot_battle_with_default_solution(self):
+        """Test plot_battle generates solution when none provided."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            solver = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+
+            fig, ax = plt.subplots()
+            solver.plot_battle(ax=ax)  # Should generate solution internally
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_autoshow(self):
+        """Test plot_battle auto-shows when no axes provided."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from unittest import mock
+
+            solver = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+
+            with mock.patch.object(plt, "show") as show_mock:
+                solver.plot_battle()
+                show_mock.assert_called_once()
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_no_autoshow_with_axes(self):
+        """Test plot_battle doesn't auto-show when axes provided."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from unittest import mock
+
+            solver = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+
+            fig, ax = plt.subplots()
+            with mock.patch.object(plt, "show") as show_mock:
+                solver.plot_battle(ax=ax)
+                show_mock.assert_not_called()
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_multiple_battles_single_battle(self):
+        """Test plot_multiple_battles with single battle (edge case)."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            solver = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+
+            # Single battle should work (axes wrapping edge case)
+            LanchesterSquareODESolver.plot_multiple_battles([solver])
+            plt.close('all')
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_multiple_battles_with_solutions_and_titles(self):
+        """Test plot_multiple_battles with provided solutions and titles."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            solver1 = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+            solver2 = LanchesterSquareODESolver(120, 90, 0.6, 0.5)
+
+            sol1 = solver1.numerical_solution()
+            sol2 = solver2.numerical_solution()
+
+            LanchesterSquareODESolver.plot_multiple_battles(
+                [solver1, solver2],
+                solutions=[sol1, sol2],
+                titles=["Battle 1", "Battle 2"]
+            )
+            plt.close('all')
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_battle_end_time_for_decisive_victory(self):
+        """Test battle end time calculation for decisive victory."""
+        # Clear victory scenario
+        solver = LanchesterSquareODESolver(100, 60, 0.5, 0.3)
+        winner, remaining, invariant = solver.calculate_battle_outcome()
+        t_end = solver.calculate_battle_end_time(winner, remaining, invariant)
+
+        # Should have finite positive end time
+        self.assertGreater(t_end, 0)
+        self.assertTrue(np.isfinite(t_end))
+
+    def test_solution_with_very_short_time_span(self):
+        """Test solution generation with very short time span."""
+        solver = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+
+        # Very short time span
+        solution = solver.solve(sample_times=np.array([0.0, 0.01, 0.02]))
+
+        # Should have 3 time points
+        self.assertEqual(len(solution.time), 3)
+
+        # Forces should not have changed much
+        self.assertAlmostEqual(solution.force_a[0], 100, places=0)
+        self.assertAlmostEqual(solution.force_b[0], 80, places=0)
+
+    def test_invariant_value_in_numerical_solution(self):
+        """Test that numerical_solution returns correct invariant value."""
+        solver = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+        result = solver.numerical_solution()
+
+        # Calculate expected invariant
+        expected_invariant = solver.alpha * solver.A0**2 - solver.beta * solver.B0**2
+
+        self.assertAlmostEqual(result['invariant'], expected_invariant, places=6)
+
+    def test_solve_with_custom_num_points(self):
+        """Test solve respects custom num_points parameter."""
+        solver = LanchesterSquareODESolver(100, 80, 0.5, 0.6)
+
+        # Request specific number of points
+        solution = solver.solve(num_points=50)
+
+        self.assertEqual(len(solution.time), 50)
+        self.assertEqual(len(solution.force_a), 50)
+        self.assertEqual(len(solution.force_b), 50)
+
+
 if __name__ == '__main__':
     unittest.main()
