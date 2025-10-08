@@ -389,19 +389,28 @@ class SalvoCombatModel:
         # Distribute hits among operational defending ships
         hits_distribution = []
         if missiles_through > 0 and operational_defenders:
-            # Simple distribution: hits distributed roughly equally with some randomness
+            # Simple distribution: hits distributed roughly equally with deterministic tie-break
             base_hits_per_ship = missiles_through // len(operational_defenders)
             remaining_hits = missiles_through % len(operational_defenders)
-            
-            for i, ship in enumerate(operational_defenders):
+
+            for i, _ship in enumerate(operational_defenders):
                 hits = base_hits_per_ship
                 if i < remaining_hits:
                     hits += 1
                 hits_distribution.append(hits)
         else:
             hits_distribution = [0] * len(operational_defenders)
-        
-        return missiles_through, hits_distribution
+
+        # Map the hits back onto the original defender ordering so casualties don't absorb later volleys
+        full_distribution = []
+        operational_iter = iter(hits_distribution)
+        for ship in defending_force:
+            if ship.is_operational():
+                full_distribution.append(next(operational_iter))
+            else:
+                full_distribution.append(0)
+
+        return missiles_through, full_distribution
     
     def execute_round(self) -> bool:
         """Execute one round of combat. Returns True if battle continues, False if over"""

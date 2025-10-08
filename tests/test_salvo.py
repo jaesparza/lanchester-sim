@@ -103,6 +103,25 @@ class TestSalvoCombatModel(unittest.TestCase):
         self.assertEqual(len(damage_per_ship), 1)
         self.assertEqual(damage_per_ship[0], 10)  # All damage to single defender
 
+    def test_salvo_hits_retarget_after_casualties(self):
+        """Hits should be reassigned to surviving ships after casualties."""
+        force_a = [Ship(name="Bomber", offensive_power=4, defensive_power=0.0, staying_power=3)]
+        force_b = [
+            Ship(name="Screen", offensive_power=0, defensive_power=0.0, staying_power=1),
+            Ship(name="Capital", offensive_power=0, defensive_power=0.0, staying_power=5),
+        ]
+
+        model = SalvoCombatModel(force_a=force_a, force_b=force_b, random_seed=1)
+
+        # First volley destroys the screening ship and damages the capital ship
+        model.execute_attack_phase(model.force_a, model.force_b, "Force A")
+        self.assertFalse(model.force_b[0].is_operational())
+        self.assertTrue(model.force_b[1].is_operational())
+
+        # Second volley should now land entirely on the surviving capital ship
+        model.execute_attack_phase(model.force_a, model.force_b, "Force A")
+        self.assertFalse(model.force_b[1].is_operational())
+
     def test_battle_progression(self):
         """Test that battles progress logically through rounds."""
         # Run a short simulation
