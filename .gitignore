@@ -32,3 +32,4 @@ Thumbs.db
 
 # Own
 .scratchpad
+.coverage
