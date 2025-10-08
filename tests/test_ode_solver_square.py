@@ -5,6 +5,8 @@ Mirrors coverage of the linear-law ODE tests: constructor validation, integratio
 behavior, consistency with analytical solutions, edge cases, and plotting.
 """
 
+import json
+import os
 import unittest
 from math import isfinite
 
@@ -138,6 +140,77 @@ class TestLanchesterSquareODESolver(unittest.TestCase):
         solution = solver.solve(sample_times=custom_times)
 
         self.assertAlmostEqual(solution.t_end, analytical_t_end, places=6)
+
+    def test_reference_vectors_align_with_ode_solver(self):
+        """Ensure analytical and ODE-based square-law solvers agree on JSON vectors."""
+        json_path = os.path.join(os.path.dirname(__file__), 'test_vectors_square.json')
+        with open(json_path, 'r', encoding='utf-8') as handle:
+            scenarios = json.load(handle)
+
+        for vector in scenarios:
+            with self.subTest(test_case=vector['name']):
+                params = vector['inputs']
+                analytical_model = LanchesterSquare(
+                    A0=params['A0'],
+                    B0=params['B0'],
+                    alpha=params['alpha'],
+                    beta=params['beta'],
+                )
+                ode_model = LanchesterSquareODESolver(
+                    A0=params['A0'],
+                    B0=params['B0'],
+                    alpha=params['alpha'],
+                    beta=params['beta'],
+                )
+
+                analytical_solution = analytical_model.analytical_solution()
+                ode_solution = ode_model.solve(sample_times=analytical_solution['time'])
+
+                # Winner and survivors should match exactly
+                self.assertEqual(ode_solution.winner, analytical_solution['winner'])
+                self.assertAlmostEqual(
+                    ode_solution.remaining_strength,
+                    analytical_solution['remaining_strength'],
+                    places=6,
+                )
+
+                # Battle end time equality (infinite times handled by isinf)
+                analytic_t_end = analytical_solution['battle_end_time']
+                if np.isinf(analytic_t_end):
+                    self.assertTrue(np.isinf(ode_solution.t_end))
+                else:
+                    self.assertAlmostEqual(ode_solution.t_end, analytic_t_end, places=6)
+
+                ode_force_a = ode_solution.force_a
+                ode_force_b = ode_solution.force_b
+
+                self.assertAlmostEqual(ode_force_a[0], params['A0'], places=6)
+                self.assertAlmostEqual(ode_force_b[0], params['B0'], places=6)
+
+                if analytical_solution['winner'] == 'Draw':
+                    self.assertLessEqual(
+                        abs(ode_force_a[-1] - analytical_solution['A'][-1]), 1.0
+                    )
+                    self.assertLessEqual(
+                        abs(ode_force_b[-1] - analytical_solution['B'][-1]), 1.0
+                    )
+                else:
+                    self.assertAlmostEqual(
+                        ode_force_a[-1], analytical_solution['A'][-1], places=3
+                    )
+                    self.assertAlmostEqual(
+                        ode_force_b[-1], analytical_solution['B'][-1], places=3
+                    )
+
+                ode_invariant = (
+                    params['alpha'] * ode_force_a**2 - params['beta'] * ode_force_b**2
+                )
+                self.assertAlmostEqual(
+                    ode_invariant[0], analytical_solution['invariant'], places=4
+                )
+                self.assertTrue(
+                    np.allclose(ode_invariant, ode_invariant[0], atol=1e-3, rtol=1e-3)
+                )
 
     def test_winner_determination(self):
         cases = [

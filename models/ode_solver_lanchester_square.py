@@ -236,12 +236,7 @@ class LanchesterSquareODESolver:
         else:
             numerical_end = float(integration_times[-1])
 
-        if np.isfinite(analytical_t_end):
-            final_t_end = analytical_t_end
-        else:
-            final_t_end = numerical_end
-
-        return SquareODESolution(times, force_a, force_b, winner, final_t_end, remaining_strength)
+        return SquareODESolution(times, force_a, force_b, winner, analytical_t_end, remaining_strength)
 
     def _post_battle_state(self, winner: str, remaining_strength: float) -> np.ndarray:
         if winner == "A":
