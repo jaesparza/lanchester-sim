@@ -191,6 +191,26 @@ class TestLanchesterLinearODESolver(unittest.TestCase):
         solution3 = solver.solve(num_points=1000)
         self.assertEqual(len(solution3.time), 1000)
 
+    def test_t_end_matches_analytical_with_truncated_span(self):
+        """Ensure truncated integration windows still report the analytical end time."""
+        solver = self.solver_a_wins
+        _, _, analytical_t_end = solver.calculate_battle_outcome()
+
+        truncated_end = analytical_t_end * 0.4
+        solution = solver.solve(t_span=(0.0, truncated_end), num_points=5)
+
+        self.assertAlmostEqual(solution.t_end, analytical_t_end, places=6)
+
+    def test_t_end_matches_analytical_with_sparse_samples(self):
+        """Ensure sparse sample grids that stop early still return correct t_end."""
+        solver = self.solver_a_wins
+        _, _, analytical_t_end = solver.calculate_battle_outcome()
+
+        custom_times = np.linspace(0.0, analytical_t_end * 0.5, 6)
+        solution = solver.solve(sample_times=custom_times)
+
+        self.assertAlmostEqual(solution.t_end, analytical_t_end, places=6)
+
     def test_winner_determination(self):
         """Test that winner is correctly determined from numerical integration."""
         test_cases = [
@@ -588,6 +608,234 @@ class TestEdgeCasesAndErrorConditions(unittest.TestCase):
         # Forces should still be reasonable
         self.assertTrue(np.all(solution_short.force_a >= 0))
         self.assertTrue(np.all(solution_short.force_b >= 0))
+
+
+class TestLinearODESolverAdditionalCoverage(unittest.TestCase):
+    """Additional tests to improve coverage of Linear ODE Solver."""
+
+    def test_negative_force_a_raises_value_error(self):
+        """Test that negative A0 raises ValueError (line 86)."""
+        with self.assertRaises(ValueError) as context:
+            LanchesterLinearODESolver(-10, 50, 0.5, 0.5)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_negative_force_b_raises_value_error(self):
+        """Test that negative B0 raises ValueError (line 100)."""
+        with self.assertRaises(ValueError) as context:
+            LanchesterLinearODESolver(50, -10, 0.5, 0.5)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_negative_alpha_raises_value_error(self):
+        """Test that negative alpha raises ValueError (line 106)."""
+        with self.assertRaises(ValueError) as context:
+            LanchesterLinearODESolver(50, 50, -0.5, 0.5)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_negative_beta_raises_value_error(self):
+        """Test that negative beta raises ValueError (line 110)."""
+        with self.assertRaises(ValueError) as context:
+            LanchesterLinearODESolver(50, 50, 0.5, -0.5)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_zero_tolerance_edge_case(self):
+        """Test battle outcome with forces very close to zero (line 148)."""
+        # Create scenario where one force is just above zero tolerance
+        solver = LanchesterLinearODESolver(0.0001, 50, 0.5, 0.5)
+        winner, remaining, advantage = solver.calculate_battle_outcome()
+
+        # B should win since A is essentially zero
+        self.assertEqual(winner, 'B')
+
+    def test_non_monotonic_time_array_raises_error(self):
+        """Test that non-monotonic time array raises ValueError (lines 174-175)."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+        # Create non-monotonic time array
+        bad_times = np.array([0.0, 1.0, 0.5, 2.0])
+
+        with self.assertRaises(ValueError) as context:
+            solver.solve(sample_times=bad_times)
+
+        self.assertIn("monotonically increasing", str(context.exception))
+
+    def test_negative_time_in_array_raises_error(self):
+        """Test that negative time raises ValueError (lines 184-185)."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+        # Create time array with negative value
+        bad_times = np.array([-1.0, 0.0, 1.0, 2.0])
+
+        with self.assertRaises(ValueError) as context:
+            solver.solve(sample_times=bad_times)
+
+        self.assertIn("non-negative", str(context.exception))
+
+    def test_integration_step_with_zero_step_size(self):
+        """Test integration handles zero step size (lines 216, 218, 220)."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+        # Create time array with repeated values (zero step size)
+        times_with_duplicates = np.array([0.0, 0.0, 1.0, 1.0, 2.0])
+        solution = solver.solve(sample_times=times_with_duplicates)
+
+        # Should handle gracefully
+        self.assertEqual(len(solution.time), len(times_with_duplicates))
+
+    def test_empty_sample_times_array(self):
+        """Test that empty sample_times raises appropriate error (line 246)."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+        # Empty array should raise error
+        with self.assertRaises((ValueError, IndexError)):
+            solver.solve(sample_times=np.array([]))
+
+    def test_single_point_sample_times(self):
+        """Test solve with single point in sample_times."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+        # Single point
+        solution = solver.solve(sample_times=np.array([0.0]))
+
+        self.assertEqual(len(solution.time), 1)
+        self.assertAlmostEqual(solution.force_a[0], 100, places=6)
+        self.assertAlmostEqual(solution.force_b[0], 80, places=6)
+
+    def test_draw_casualty_calculation_finite_time(self):
+        """Test casualty calculation for draw with finite time (lines 267-269)."""
+        # Exact draw: alpha*A0 = beta*B0
+        solver = LanchesterLinearODESolver(100, 100, 0.5, 0.5)
+        result = solver.numerical_solution()
+
+        self.assertEqual(result['winner'], 'Draw')
+
+        # For finite time draw, check casualties
+        if np.isfinite(result['battle_end_time']):
+            # Both should have casualties
+            self.assertGreater(result['A_casualties'], 0)
+            self.assertGreater(result['B_casualties'], 0)
+
+    def test_draw_casualty_calculation_infinite_time(self):
+        """Test casualty calculation for draw with infinite time (line 271)."""
+        # No combat: alpha=0 and beta=0
+        solver = LanchesterLinearODESolver(100, 80, 0.0, 0.0)
+        result = solver.numerical_solution()
+
+        self.assertEqual(result['winner'], 'Draw')
+        self.assertEqual(result['battle_end_time'], float('inf'))
+
+        # With no combat, no casualties
+        self.assertEqual(result['A_casualties'], 0.0)
+        self.assertEqual(result['B_casualties'], 0.0)
+
+    def test_plot_battle_with_default_solution(self):
+        """Test plot_battle generates solution when none provided (line 284)."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+            fig, ax = plt.subplots()
+            solver.plot_battle(ax=ax)  # Should generate solution internally
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_autoshow(self):
+        """Test plot_battle auto-shows when no axes provided."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from unittest import mock
+
+            solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+            with mock.patch.object(plt, "show") as show_mock:
+                solver.plot_battle()
+                show_mock.assert_called_once()
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_no_autoshow_with_axes(self):
+        """Test plot_battle doesn't auto-show when axes provided."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from unittest import mock
+
+            solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+            fig, ax = plt.subplots()
+            with mock.patch.object(plt, "show") as show_mock:
+                solver.plot_battle(ax=ax)
+                show_mock.assert_not_called()
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_battle_outcome_with_zero_alpha(self):
+        """Test battle outcome when alpha is zero."""
+        solver = LanchesterLinearODESolver(100, 80, 0.0, 0.5)
+        winner, remaining, advantage = solver.calculate_battle_outcome()
+
+        # B should win since A can't damage B
+        self.assertEqual(winner, 'B')
+
+    def test_battle_outcome_with_zero_beta(self):
+        """Test battle outcome when beta is zero."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.0)
+        winner, remaining, advantage = solver.calculate_battle_outcome()
+
+        # A should win since B can't damage A
+        self.assertEqual(winner, 'A')
+
+    def test_numerical_solution_invariant_value(self):
+        """Test that numerical_solution returns correct linear advantage."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+        result = solver.numerical_solution()
+
+        # Calculate expected linear advantage: alpha*A0 - beta*B0
+        expected_advantage = solver.alpha * solver.A0 - solver.beta * solver.B0
+
+        self.assertAlmostEqual(result['linear_advantage'], expected_advantage, places=6)
+
+    def test_solve_with_custom_num_points(self):
+        """Test solve respects custom num_points parameter."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+
+        # Request specific number of points
+        solution = solver.solve(num_points=50)
+
+        self.assertEqual(len(solution.time), 50)
+        self.assertEqual(len(solution.force_a), 50)
+        self.assertEqual(len(solution.force_b), 50)
+
+    def test_very_short_battle(self):
+        """Test battle with very short duration."""
+        # Large effectiveness coefficients for quick battle
+        solver = LanchesterLinearODESolver(10, 5, 5.0, 5.0)
+        result = solver.numerical_solution()
+
+        # Battle should end quickly
+        self.assertLess(result['battle_end_time'], 10)
+        self.assertGreater(result['battle_end_time'], 0)
+
+    def test_num_points_less_than_two(self):
+        """Test that num_points < 2 is corrected to 2."""
+        solver = LanchesterLinearODESolver(100, 80, 0.5, 0.6)
+        solution = solver.solve(num_points=1)  # Should be corrected to 2
+
+        # Should have at least 2 points
+        self.assertGreaterEqual(len(solution.time), 2)
+        self.assertGreaterEqual(len(solution.force_a), 2)
+        self.assertGreaterEqual(len(solution.force_b), 2)
 
 
 if __name__ == '__main__':

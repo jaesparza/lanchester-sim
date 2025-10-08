@@ -135,14 +135,20 @@ class LanchesterLinearODESolver:
             return LinearODESolution(time, zeros, zeros, "Draw", 0.0, 0.0)
 
         times = self._prepare_sample_times(t_span, num_points, sample_times)
-        forces = np.zeros((times.size, 2), dtype=float)
+        integration_times = times
+        prepend_zero = False
+        if integration_times[0] > 0.0:
+            integration_times = np.concatenate(([0.0], integration_times))
+            prepend_zero = True
+
+        forces = np.zeros((integration_times.size, 2), dtype=float)
         forces[0] = initial_state
 
         current_state = initial_state.copy()
 
-        for idx in range(1, times.size):
-            t_prev = times[idx - 1]
-            dt = times[idx] - t_prev
+        for idx in range(1, integration_times.size):
+            t_prev = integration_times[idx - 1]
+            dt = integration_times[idx] - t_prev
 
             if dt < 0:
                 raise ValueError("sample_times must be monotonically increasing")
@@ -154,21 +160,28 @@ class LanchesterLinearODESolver:
             current_state = np.maximum(current_state, 0.0)
             forces[idx] = current_state
 
-        force_a = np.clip(forces[:, 0], 0.0, None)
-        force_b = np.clip(forces[:, 1], 0.0, None)
+        force_a_full = np.clip(forces[:, 0], 0.0, None)
+        force_b_full = np.clip(forces[:, 1], 0.0, None)
+
+        if prepend_zero:
+            force_a = force_a_full[1:]
+            force_b = force_b_full[1:]
+        else:
+            force_a = force_a_full
+            force_b = force_b_full
 
         # Find when either force is eliminated
-        elimination_mask = (force_a <= self.ZERO_TOLERANCE) | (force_b <= self.ZERO_TOLERANCE)
+        elimination_mask = (force_a_full <= self.ZERO_TOLERANCE) | (force_b_full <= self.ZERO_TOLERANCE)
         elimination_indices = np.where(elimination_mask)[0]
 
         if elimination_indices.size:
             # Battle ends when first force is eliminated
             elimination_idx = elimination_indices[0]
-            t_end = float(times[elimination_idx])
+            t_end = float(integration_times[elimination_idx])
 
             # Determine winner based on which force survived at elimination time
-            a_at_end = float(force_a[elimination_idx])
-            b_at_end = float(force_b[elimination_idx])
+            a_at_end = float(force_a_full[elimination_idx])
+            b_at_end = float(force_b_full[elimination_idx])
 
             if a_at_end <= self.ZERO_TOLERANCE and b_at_end <= self.ZERO_TOLERANCE:
                 winner = "Draw"
@@ -185,9 +198,9 @@ class LanchesterLinearODESolver:
                 remaining = 0.0
         else:
             # No elimination detected in simulation time
-            t_end = float(times[-1])
-            final_a = float(force_a[-1])
-            final_b = float(force_b[-1])
+            t_end = float(integration_times[-1])
+            final_a = float(force_a_full[-1])
+            final_b = float(force_b_full[-1])
 
             if self.alpha <= self.ZERO_TOLERANCE and self.beta <= self.ZERO_TOLERANCE:
                 # No attrition - draw with larger force surviving
@@ -200,10 +213,12 @@ class LanchesterLinearODESolver:
                     # Battle will end later - return ongoing status
                     winner = analytical_winner
                     remaining = analytical_remaining
+                    t_end = analytical_t_end
                 else:
                     # Battle should have ended - use analytical result
                     winner = analytical_winner
                     remaining = analytical_remaining
+                    t_end = analytical_t_end
 
         return LinearODESolution(times, force_a, force_b, winner, t_end, remaining)
 
