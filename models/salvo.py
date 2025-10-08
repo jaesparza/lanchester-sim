@@ -413,19 +413,17 @@ class SalvoCombatModel:
                 missiles_through += 1
         
         # Distribute hits among operational defending ships
-        hits_distribution = []
+        hits_distribution = [0] * len(operational_defenders)
         if missiles_through > 0 and operational_defenders:
-            # Simple distribution: hits distributed roughly equally with deterministic tie-break
-            base_hits_per_ship = missiles_through // len(operational_defenders)
-            remaining_hits = missiles_through % len(operational_defenders)
-
-            for i, _ship in enumerate(operational_defenders):
-                hits = base_hits_per_ship
-                if i < remaining_hits:
-                    hits += 1
-                hits_distribution.append(hits)
-        else:
-            hits_distribution = [0] * len(operational_defenders)
+            for missile_idx in range(missiles_through):
+                if (
+                    self.HIT_DISTRIBUTION_RANDOMNESS > 0
+                    and random.random() < self.HIT_DISTRIBUTION_RANDOMNESS
+                ):
+                    target = random.randrange(len(operational_defenders))
+                else:
+                    target = missile_idx % len(operational_defenders)
+                hits_distribution[target] += 1
 
         # Map the hits back onto the original defender ordering so casualties don't absorb later volleys
         full_distribution = []

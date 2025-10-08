@@ -103,6 +103,34 @@ class TestSalvoCombatModel(unittest.TestCase):
         self.assertEqual(len(damage_per_ship), 1)
         self.assertEqual(damage_per_ship[0], 10)  # All damage to single defender
 
+    def test_salvo_hit_distribution_respects_randomness_factor(self):
+        """HIT_DISTRIBUTION_RANDOMNESS should toggle stochastic allocation."""
+        deterministic_model = SalvoCombatModel(
+            force_a=[Ship(name="Att", offensive_power=4, defensive_power=0.0, staying_power=3)],
+            force_b=[
+                Ship(name="Def1", offensive_power=0, defensive_power=0.0, staying_power=5),
+                Ship(name="Def2", offensive_power=0, defensive_power=0.0, staying_power=5),
+            ],
+            random_seed=0,
+        )
+        deterministic_model.HIT_DISTRIBUTION_RANDOMNESS = 0.0
+        _, deterministic_hits = deterministic_model.calculate_salvo_effectiveness(deterministic_model.force_a, deterministic_model.force_b)
+
+        random_model = SalvoCombatModel(
+            force_a=[Ship(name="Att", offensive_power=4, defensive_power=0.0, staying_power=3)],
+            force_b=[
+                Ship(name="Def1", offensive_power=0, defensive_power=0.0, staying_power=5),
+                Ship(name="Def2", offensive_power=0, defensive_power=0.0, staying_power=5),
+            ],
+            random_seed=0,
+        )
+        random_model.HIT_DISTRIBUTION_RANDOMNESS = 1.0
+        _, random_hits = random_model.calculate_salvo_effectiveness(random_model.force_a, random_model.force_b)
+
+        self.assertEqual(deterministic_hits, [2, 2])
+        self.assertEqual(sum(random_hits), sum(deterministic_hits))
+        self.assertNotEqual(random_hits, deterministic_hits)
+
     def test_salvo_hits_retarget_after_casualties(self):
         """Hits should be reassigned to surviving ships after casualties."""
         force_a = [Ship(name="Bomber", offensive_power=4, defensive_power=0.0, staying_power=3)]
