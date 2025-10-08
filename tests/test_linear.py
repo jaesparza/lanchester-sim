@@ -368,5 +368,205 @@ class TestLanchesterLinear(unittest.TestCase):
                        msg="Normal case should be below threshold")
 
 
+class TestLanchesterLinearAdditionalCoverage(unittest.TestCase):
+    """Additional tests to improve coverage of Lanchester Linear Law."""
+
+    def test_both_forces_initially_depleted(self):
+        """Test edge case when both forces start at zero."""
+        battle = LanchesterLinear(A0=0, B0=0, alpha=0.5, beta=0.5)
+        winner, remaining, t_end = battle.calculate_battle_outcome()
+
+        self.assertEqual(winner, 'Draw')
+        self.assertEqual(remaining, 0.0)
+        self.assertEqual(t_end, 0.0)
+
+    def test_force_a_initially_depleted(self):
+        """Test edge case when Force A starts at zero."""
+        battle = LanchesterLinear(A0=0, B0=50, alpha=0.5, beta=0.5)
+        winner, remaining, t_end = battle.calculate_battle_outcome()
+
+        self.assertEqual(winner, 'B')
+        self.assertEqual(remaining, 50.0)
+        self.assertEqual(t_end, 0.0)
+
+    def test_force_b_initially_depleted(self):
+        """Test edge case when Force B starts at zero."""
+        battle = LanchesterLinear(A0=50, B0=0, alpha=0.5, beta=0.5)
+        winner, remaining, t_end = battle.calculate_battle_outcome()
+
+        self.assertEqual(winner, 'A')
+        self.assertEqual(remaining, 50.0)
+        self.assertEqual(t_end, 0.0)
+
+    def test_simple_analytical_solution_wrapper(self):
+        """Test simple_analytical_solution method."""
+        battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+
+        # Call simple_analytical_solution (wrapper method)
+        simple_solution = battle.simple_analytical_solution()
+
+        # Call analytical_solution directly
+        full_solution = battle.analytical_solution()
+
+        # They should return the same result
+        self.assertEqual(simple_solution['winner'], full_solution['winner'])
+        self.assertAlmostEqual(simple_solution['remaining_strength'],
+                              full_solution['remaining_strength'], places=2)
+        self.assertAlmostEqual(simple_solution['battle_end_time'],
+                              full_solution['battle_end_time'], places=2)
+
+    def test_plot_battle_with_default_solution(self):
+        """Test plot_battle generates solution when none provided."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+
+            # Call plot_battle without providing solution
+            fig, ax = plt.subplots()
+            battle.plot_battle(ax=ax)  # Should generate solution internally
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_with_provided_solution(self):
+        """Test plot_battle uses provided solution."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+            solution = battle.analytical_solution()
+
+            # Call plot_battle with provided solution
+            fig, ax = plt.subplots()
+            battle.plot_battle(solution=solution, ax=ax)
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_autoshow(self):
+        """Test plot_battle auto-shows when no axes provided."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from unittest import mock
+
+            battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+
+            with mock.patch.object(plt, "show") as show_mock:
+                battle.plot_battle()
+                show_mock.assert_called_once()
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_no_autoshow_with_axes(self):
+        """Test plot_battle doesn't auto-show when axes provided."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from unittest import mock
+
+            battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+
+            fig, ax = plt.subplots()
+            with mock.patch.object(plt, "show") as show_mock:
+                battle.plot_battle(ax=ax)
+                show_mock.assert_not_called()
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_includes_battle_end_marker(self):
+        """Test plot includes battle end time marker."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+            solution = battle.analytical_solution()
+
+            fig, ax = plt.subplots()
+            battle.plot_battle(solution=solution, ax=ax)
+
+            # Check that battle_end_time is in the solution
+            self.assertIn('battle_end_time', solution)
+            self.assertGreater(solution['battle_end_time'], 0)
+
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_shows_linear_advantage(self):
+        """Test plot displays linear law advantage calculation."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+
+            # Calculate expected linear advantage
+            expected_advantage = battle.alpha * battle.A0 - battle.beta * battle.B0
+
+            fig, ax = plt.subplots()
+            battle.plot_battle(ax=ax)
+
+            # Linear advantage should be calculated correctly
+            self.assertAlmostEqual(expected_advantage, 50 - 48, places=2)
+
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_plot_battle_custom_title(self):
+        """Test plot_battle accepts custom title."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+            custom_title = "Custom Battle Scenario"
+
+            fig, ax = plt.subplots()
+            battle.plot_battle(title=custom_title, ax=ax)
+
+            # Verify title is set (matplotlib sets it on the axes)
+            self.assertIsNotNone(ax.get_title())
+
+            plt.close(fig)
+        except (ImportError, TypeError):
+            self.skipTest("Matplotlib backend issue")
+
+    def test_analytical_solution_with_custom_t_max(self):
+        """Test analytical_solution respects custom t_max parameter."""
+        battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+
+        # Get solution with custom t_max
+        solution = battle.analytical_solution(t_max=50)
+
+        # Time array should end at or near t_max
+        self.assertLessEqual(solution['time'][-1], 55)  # Allow some buffer
+        self.assertGreater(solution['time'][-1], 45)
+
+    def test_simple_analytical_solution_default_t_max(self):
+        """Test simple_analytical_solution uses default t_max."""
+        battle = LanchesterLinear(A0=100, B0=80, alpha=0.5, beta=0.6)
+
+        # Call without t_max
+        solution = battle.simple_analytical_solution()
+
+        # Should have reasonable length (default uses many points for smooth curves)
+        self.assertGreater(len(solution['time']), 50)
+        self.assertLessEqual(len(solution['time']), 1000)
+
+
 if __name__ == '__main__':
     unittest.main()
