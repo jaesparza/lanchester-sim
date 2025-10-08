@@ -124,6 +124,38 @@ class SalvoCombatModel:
             'average_defensive': sum(ship.defensive_power for ship in operational_ships) / len(operational_ships)
         }
 
+    def _clone_force(self, force: List[Ship]) -> List[Ship]:
+        """Create deep copies of the supplied ships preserving current damage state."""
+        clones = []
+        for ship in force:
+            clones.append(
+                Ship(
+                    name=ship.name,
+                    offensive_power=ship.offensive_power,
+                    defensive_power=ship.defensive_power,
+                    staying_power=ship.staying_power,
+                    current_hits=ship.current_hits,
+                    is_active=ship.is_active,
+                )
+            )
+        return clones
+
+    def _run_simulation_clone(self, max_rounds: int, quiet: bool) -> Tuple[str, dict]:
+        """Run a simulation on cloned forces to keep the original model untouched."""
+        clone_a = self._clone_force(self.force_a)
+        clone_b = self._clone_force(self.force_b)
+        clone_model = SalvoCombatModel(clone_a, clone_b)
+
+        rng_state = random.getstate()
+        np_state = np.random.get_state()
+        try:
+            outcome = clone_model.run_simulation(max_rounds=max_rounds, quiet=quiet)
+        finally:
+            random.setstate(rng_state)
+            np.random.set_state(np_state)
+
+        return outcome, clone_model.get_battle_statistics()
+
     def execute_attack_phase(self, attackers: List[Ship], defenders: List[Ship], attacking_force_name: str) -> List[str]:
         """
         Execute attack phase and return event log.
@@ -267,9 +299,7 @@ class SalvoCombatModel:
                     print(f"Low attrition scenario detected (effective damage A: {effective_damage_a:.3f}, B: {effective_damage_b:.3f})")
                     print("Falling back to full simulation for accurate results...")
 
-                # Run full simulation and return formatted result
-                outcome = self.run_simulation(max_rounds=max_rounds, quiet=quiet)
-                stats = self.get_battle_statistics()
+                outcome, stats = self._run_simulation_clone(max_rounds=max_rounds, quiet=quiet)
 
                 return {
                     'outcome': outcome,
@@ -301,9 +331,7 @@ class SalvoCombatModel:
                     print(f"Equal offensive power detected (A: {total_a_offensive:.1f}, B: {total_b_offensive:.1f})")
                     print("Falling back to full simulation for accurate equal-power resolution...")
 
-                # Run full simulation and return formatted result
-                outcome = self.run_simulation(max_rounds=max_rounds, quiet=quiet)
-                stats = self.get_battle_statistics()
+                outcome, stats = self._run_simulation_clone(max_rounds=max_rounds, quiet=quiet)
 
                 return {
                     'outcome': outcome,
@@ -347,10 +375,8 @@ class SalvoCombatModel:
                 print(f"Defensive similarity: {defensive_similarity:.3f} (threshold: {self.FORCE_EFFECTIVENESS_TOLERANCE * 10:.3f})")
                 print("Using full simulation due to defensive capability differences.\n")
 
-            # Run full simulation
-            result = self.run_simulation(max_rounds, quiet=quiet)
-
-            stats = self.get_battle_statistics()
+            # Run full simulation on clones to preserve current state
+            result, stats = self._run_simulation_clone(max_rounds=max_rounds, quiet=quiet)
             stats['method'] = 'full_simulation'
             stats['defensive_similarity'] = defensive_similarity
             return stats

@@ -173,6 +173,30 @@ class TestSalvoCombatModel(unittest.TestCase):
         self.assertEqual(result['method'], 'full_simulation')
         self.assertIn('defensive_similarity', result)
 
+    def test_simple_simulation_fallback_preserves_state(self):
+        """Fallback to full simulation must not mutate the live model state."""
+        force_a = [Ship(name="A", offensive_power=6, defensive_power=0.1, staying_power=3)]
+        force_b = [Ship(name="B", offensive_power=5, defensive_power=0.7, staying_power=4)]
+
+        model = SalvoCombatModel(force_a=force_a, force_b=force_b)
+
+        snapshot_a = [(ship.current_hits, ship.is_active) for ship in model.force_a]
+        snapshot_b = [(ship.current_hits, ship.is_active) for ship in model.force_b]
+
+        result = model.simple_simulation(quiet=True)
+
+        self.assertEqual(result['method'], 'full_simulation')
+        self.assertEqual(model.round_number, 0)
+        self.assertEqual(len(model.battle_log), 0)
+
+        for ship, (hits, active) in zip(model.force_a, snapshot_a):
+            self.assertEqual(ship.current_hits, hits)
+            self.assertEqual(ship.is_active, active)
+
+        for ship, (hits, active) in zip(model.force_b, snapshot_b):
+            self.assertEqual(ship.current_hits, hits)
+            self.assertEqual(ship.is_active, active)
+
     def test_reference_seeded_battle(self):
         """Exercise deterministic reference run highlighted during review."""
 
