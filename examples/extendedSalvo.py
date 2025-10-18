@@ -283,25 +283,48 @@ def plot_offense_defense_scatter(ax, results):
     b_offense = [r['b_off'] for r in results]
     b_defense = [r['b_def'] for r in results]
 
-    # Plot Force A (winners marked differently)
-    for i, r in enumerate(results):
-        marker = 'o' if 'Force A' in r['outcome'] else 'x'
-        color = 'blue' if 'Force A' in r['outcome'] else 'lightblue'
-        ax.scatter(a_offense[i], a_defense[i], marker=marker, s=150,
-                  color=color, edgecolor='darkblue', linewidth=2, label='Alpha' if i == 0 else '', zorder=3)
+    alpha_wins = {'x': [], 'y': []}
+    alpha_losses = {'x': [], 'y': []}
+    bravo_wins = {'x': [], 'y': []}
+    bravo_losses = {'x': [], 'y': []}
 
-    # Plot Force B
     for i, r in enumerate(results):
-        marker = 'o' if 'Force B' in r['outcome'] else 'x'
-        color = 'red' if 'Force B' in r['outcome'] else 'lightcoral'
-        ax.scatter(b_offense[i], b_defense[i], marker=marker, s=150,
-                  color=color, edgecolor='darkred', linewidth=2, label='Bravo' if i == 0 else '', zorder=3)
+        if 'Force A' in r['outcome']:
+            alpha_wins['x'].append(a_offense[i])
+            alpha_wins['y'].append(a_defense[i])
+        else:
+            alpha_losses['x'].append(a_offense[i])
+            alpha_losses['y'].append(a_defense[i])
+
+        if 'Force B' in r['outcome']:
+            bravo_wins['x'].append(b_offense[i])
+            bravo_wins['y'].append(b_defense[i])
+        else:
+            bravo_losses['x'].append(b_offense[i])
+            bravo_losses['y'].append(b_defense[i])
+
+    handles = []
+    labels = []
+
+    def add_scatter(points, marker, color, edgecolor, label, zorder):
+        if points['x']:
+            scatter = ax.scatter(points['x'], points['y'], marker=marker, s=150,
+                                 color=color, edgecolor=edgecolor, linewidth=2,
+                                 label=label, zorder=zorder)
+            handles.append(scatter)
+            labels.append(label)
+
+    add_scatter(alpha_wins, 'o', '#2f76b5', '#1f4f73', 'Alpha wins', 4)
+    add_scatter(alpha_losses, 'x', '#8ebbe9', '#1f4f73', 'Alpha loses', 3)
+    add_scatter(bravo_wins, 'o', '#c24848', '#701f1f', 'Bravo wins', 4)
+    add_scatter(bravo_losses, 'x', '#f0a1a1', '#701f1f', 'Bravo loses', 3)
 
     ax.set_xlabel('Offensive Power', fontsize=11, fontweight='bold')
     ax.set_ylabel('Defensive Power', fontsize=11, fontweight='bold')
     ax.set_title('Offense vs Defense Trade-offs\n(○ = Winner, × = Loser)', fontsize=12, fontweight='bold')
     ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend(['Alpha wins', 'Alpha loses', 'Bravo wins', 'Bravo loses'], loc='upper right', fontsize=9)
+    if handles:
+        ax.legend(handles, labels, loc='upper right', fontsize=9)
     ax.set_xlim(0, max(max(a_offense), max(b_offense)) * 1.1)
     ax.set_ylim(0, 1.0)
 
