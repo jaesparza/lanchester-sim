@@ -6,6 +6,7 @@ This script runs all the example cases from the models to verify they work corre
 It addresses import path issues that occur when running model files directly.
 """
 
+import math
 import sys
 import os
 
@@ -22,8 +23,68 @@ def main():
         # Test imports as specified in CLAUDE.md
         print("Testing imports...")
         from models import LanchesterLinear, LanchesterSquare, SalvoCombatModel, Ship
+        from models.ode_solver_lanchseter_linear import LanchesterLinearODESolver
+        from models.ode_solver_lanchester_square import LanchesterSquareODESolver
         print("✅ All model imports successful")
         print()
+
+        def float_close(a, b, tol=1e-9):
+            """Helper to compare floats with tolerance and handle infinities."""
+            if a is None or b is None:
+                return a is None and b is None
+            if math.isinf(a) and math.isinf(b):
+                return True
+            return abs(a - b) <= tol
+
+        def verify_consistency(model_label, scenario_label, analytical_solution, ode_solution, extra_fields=None):
+            """Ensure analytical and ODE implementations agree on battle outcome."""
+            extra_fields = extra_fields or []
+            mismatches = []
+
+            if analytical_solution.get('winner') != ode_solution.get('winner'):
+                mismatches.append(
+                    f"winner mismatch (analytical={analytical_solution.get('winner')}, "
+                    f"ode={ode_solution.get('winner')})"
+                )
+
+            numeric_fields = ['remaining_strength', 'battle_end_time', 'A_casualties', 'B_casualties']
+            numeric_fields.extend(extra_fields)
+
+            for field in numeric_fields:
+                if field in analytical_solution and field in ode_solution:
+                    if not float_close(analytical_solution[field], ode_solution[field]):
+                        mismatches.append(
+                            f"{field} mismatch (analytical={analytical_solution[field]:.6f}, "
+                            f"ode={ode_solution[field]:.6f})"
+                        )
+
+            if mismatches:
+                details = "; ".join(mismatches)
+                raise AssertionError(
+                    f"{model_label} [{scenario_label}] inconsistency detected: {details}"
+                )
+
+            print(f"   ✅ {model_label} ({scenario_label}) analytical vs ODE results match")
+
+        def verify_linear_implementations(label, battle):
+            """Compare Linear Law analytical implementation with ODE solver."""
+            analytical_solution = battle.analytical_solution()
+            solver = LanchesterLinearODESolver(battle.A0, battle.B0, battle.alpha, battle.beta)
+            ode_solution = solver.numerical_solution(
+                t_max=analytical_solution['time'][-1],
+                num_points=len(analytical_solution['time'])
+            )
+            verify_consistency("Linear Law", label, analytical_solution, ode_solution, extra_fields=['linear_advantage'])
+
+        def verify_square_implementations(label, battle):
+            """Compare Square Law analytical implementation with ODE solver."""
+            analytical_solution = battle.analytical_solution()
+            solver = LanchesterSquareODESolver(battle.A0, battle.B0, battle.alpha, battle.beta)
+            ode_solution = solver.numerical_solution(
+                t_max=analytical_solution['time'][-1],
+                num_points=len(analytical_solution['time'])
+            )
+            verify_consistency("Square Law", label, analytical_solution, ode_solution, extra_fields=['invariant'])
 
         # Run Linear Law examples
         print("=" * 40)
@@ -104,6 +165,21 @@ def main():
         print(f"Linear Law winner: {solution1['winner']} with {solution1['remaining_strength']:.1f} survivors")
         print(f"Square Law winner: {square_solution1['winner']} with {square_solution1['remaining_strength']:.1f} survivors")
         print(f"Square Law advantage: {square_solution1['remaining_strength'] - solution1['remaining_strength']:.1f} more survivors")
+        print()
+
+        # Implementation verification (analytical vs ODE versions)
+        print("=" * 40)
+        print("IMPLEMENTATION CONSISTENCY CHECKS")
+        print("=" * 40)
+
+        verify_linear_implementations("Numerical Advantage - Force A Superior", battle1)
+        verify_linear_implementations("Superior Effectiveness vs. Numbers", battle2)
+
+        verify_square_implementations("Equal Effectiveness - Size Matters", square1)
+        verify_square_implementations("Superior Effectiveness vs. Numbers", square2)
+
+        square_draw = LanchesterSquare(A0=100, B0=100, alpha=0.01, beta=0.01)
+        verify_square_implementations("Equal Forces Draw", square_draw)
         print()
 
         print("✅ All model examples completed successfully!")
