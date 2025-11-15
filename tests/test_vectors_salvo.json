@@ -1,0 +1,397 @@
+[
+  {
+    "_comment": "TEST VECTOR DOCUMENTATION",
+    "_description": "Comprehensive test vectors for Salvo Combat Model validation",
+    "_model": "SalvoCombatModel",
+    "_mechanics": "Discrete round-based naval/missile combat with probabilistic interception",
+    "_ship_parameters": {
+      "offensive_power": "Number of missiles/projectiles fired per salvo",
+      "defensive_power": "Probability of intercepting incoming missiles (0.0 to 1.0)",
+      "staying_power": "Number of hits required to sink the ship"
+    },
+    "_total_tests": 15,
+    "_coverage": {
+      "symmetric_engagements": [
+        "equal_single_ships_draw - Identical ships lead to mutual destruction",
+        "zero_defense_both_sides - No defenses means all missiles hit, instant mutual kill",
+        "large_fleet_engagement - 3v3 symmetric fleets with identical stats",
+        "minimal_damage_high_defense - High mutual defense (0.9) creates long attrition battle",
+        "fragile_ships_quick_battle - Glass cannons with staying_power=2, quick resolution"
+      ],
+      "parameter_variations": [
+        "A_wins_superior_offense - Tests offensive_power advantage (20 vs 10)",
+        "B_wins_superior_defense - Tests defensive_power advantage (0.7 vs 0.3)",
+        "A_wins_higher_staying_power - Tests durability advantage (20 vs 10 hits)",
+        "perfect_defense_scenario - Near-maximum defense (0.95) vs minimal (0.1)"
+      ],
+      "numerical_advantage": [
+        "numerical_advantage_two_vs_one - 2v1 engagement, quantity vs quality",
+        "weak_vs_strong_asymmetric - One powerful ship vs three weak patrol boats"
+      ],
+      "fleet_composition": [
+        "heterogeneous_fleet_A - Mixed battleship+destroyer vs two cruisers",
+        "mixed_capabilities_balanced - Tank+Artillery vs two balanced ships"
+      ],
+      "extreme_scenarios": [
+        "instant_victory_overwhelming_force - Offensive power 100 vs 1, one-round victory",
+        "deterministic_seed_reproducibility - Validates random seed produces consistent results"
+      ]
+    },
+    "_test_structure": {
+      "inputs": "force_a (list of ships), force_b (list of ships), random_seed",
+      "expected": "winner, rounds, survivors, health metrics (exact or ranges)",
+      "description": "Tactical explanation of scenario being tested",
+      "tolerance": "Numerical comparison tolerances where applicable"
+    },
+    "_validation_notes": [
+      "Random seeds ensure reproducible results despite probabilistic mechanics",
+      "Some tests use ranges (min/max) to accommodate stochastic variation",
+      "Winner determination: last force with operational ships",
+      "Operational ship: current_hits < staying_power",
+      "Hit distribution affected by HIT_DISTRIBUTION_RANDOMNESS constant",
+      "Defense interception follows binomial distribution based on defensive_power"
+    ],
+    "_battle_mechanics": [
+      "Round-based: Both sides fire salvos simultaneously each round",
+      "Missile interception: Each ship attempts to intercept based on defensive_power",
+      "Damage distribution: Penetrating missiles distributed across operational ships",
+      "Victory condition: Enemy force completely destroyed or max rounds reached"
+    ],
+    "_usage": "Load this file to validate SalvoCombatModel implementation correctness, test probabilistic mechanics, and verify fleet composition strategies"
+  },
+  {
+    "name": "equal_single_ships_draw",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 10.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 10.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": null,
+      "rounds": 2,
+      "force_a_survivors": 0,
+      "force_b_survivors": 0,
+      "force_a_total_health": 0,
+      "force_b_total_health": 0
+    },
+    "description": "Two identical ships should result in mutual destruction",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "A_wins_superior_offense",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 20.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 10.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "A",
+      "rounds": 2,
+      "force_a_survivors": 1,
+      "force_b_survivors": 0,
+      "min_force_a_health": 1,
+      "force_b_total_health": 0
+    },
+    "description": "Force A has double offensive power, should win decisively",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "B_wins_superior_defense",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 10.0, "defensive_power": 0.3, "staying_power": 10 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 10.0, "defensive_power": 0.7, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "B",
+      "rounds": 2,
+      "force_a_survivors": 0,
+      "force_b_survivors": 1,
+      "force_a_total_health": 0,
+      "min_force_b_health": 1
+    },
+    "description": "Force B has superior defensive power, intercepts more missiles",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "A_wins_higher_staying_power",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 10.0, "defensive_power": 0.5, "staying_power": 20 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 10.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "A",
+      "rounds": 2,
+      "force_a_survivors": 1,
+      "force_b_survivors": 0,
+      "min_force_a_health": 10,
+      "force_b_total_health": 0
+    },
+    "description": "Force A can withstand double the damage, should survive",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "numerical_advantage_two_vs_one",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 10.0, "defensive_power": 0.5, "staying_power": 10 },
+        { "name": "Alpha-2", "offensive_power": 10.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 10.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "A",
+      "max_rounds": 3,
+      "min_force_a_survivors": 1,
+      "force_b_survivors": 0,
+      "force_b_total_health": 0
+    },
+    "description": "Two ships vs one with identical stats, numbers should prevail",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "heterogeneous_fleet_A",
+    "inputs": {
+      "force_a": [
+        { "name": "Battleship", "offensive_power": 30.0, "defensive_power": 0.6, "staying_power": 20 },
+        { "name": "Destroyer", "offensive_power": 10.0, "defensive_power": 0.4, "staying_power": 5 }
+      ],
+      "force_b": [
+        { "name": "Cruiser-1", "offensive_power": 20.0, "defensive_power": 0.5, "staying_power": 10 },
+        { "name": "Cruiser-2", "offensive_power": 20.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "A",
+      "max_rounds": 5,
+      "min_force_a_survivors": 1,
+      "force_b_survivors": 0
+    },
+    "description": "Mixed fleet composition with different ship types",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "perfect_defense_scenario",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 10.0, "defensive_power": 0.95, "staying_power": 10 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 10.0, "defensive_power": 0.1, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "A",
+      "max_rounds": 5,
+      "force_a_survivors": 1,
+      "force_b_survivors": 0,
+      "min_force_a_health": 8,
+      "force_b_total_health": 0
+    },
+    "description": "Near-perfect defense (95%) vs minimal defense (10%)",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "zero_defense_both_sides",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 10.0, "defensive_power": 0.0, "staying_power": 10 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 10.0, "defensive_power": 0.0, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": null,
+      "rounds": 1,
+      "force_a_survivors": 0,
+      "force_b_survivors": 0,
+      "force_a_total_health": 0,
+      "force_b_total_health": 0
+    },
+    "description": "No defenses means all missiles hit, mutual destruction in one round",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "weak_vs_strong_asymmetric",
+    "inputs": {
+      "force_a": [
+        { "name": "Dreadnought", "offensive_power": 50.0, "defensive_power": 0.8, "staying_power": 30 }
+      ],
+      "force_b": [
+        { "name": "Patrol-1", "offensive_power": 5.0, "defensive_power": 0.2, "staying_power": 3 },
+        { "name": "Patrol-2", "offensive_power": 5.0, "defensive_power": 0.2, "staying_power": 3 },
+        { "name": "Patrol-3", "offensive_power": 5.0, "defensive_power": 0.2, "staying_power": 3 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "A",
+      "max_rounds": 3,
+      "force_a_survivors": 1,
+      "force_b_survivors": 0,
+      "min_force_a_health": 25,
+      "force_b_total_health": 0
+    },
+    "description": "One powerful ship vs three weak ships, quality over quantity",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "large_fleet_engagement",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 15.0, "defensive_power": 0.5, "staying_power": 10 },
+        { "name": "Alpha-2", "offensive_power": 15.0, "defensive_power": 0.5, "staying_power": 10 },
+        { "name": "Alpha-3", "offensive_power": 15.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 15.0, "defensive_power": 0.5, "staying_power": 10 },
+        { "name": "Bravo-2", "offensive_power": 15.0, "defensive_power": 0.5, "staying_power": 10 },
+        { "name": "Bravo-3", "offensive_power": 15.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": null,
+      "max_rounds": 3,
+      "force_a_survivors": 0,
+      "force_b_survivors": 0,
+      "force_a_total_health": 0,
+      "force_b_total_health": 0
+    },
+    "description": "Large symmetric fleet engagement, should end in draw",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "instant_victory_overwhelming_force",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 100.0, "defensive_power": 0.5, "staying_power": 10 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 1.0, "defensive_power": 0.1, "staying_power": 5 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "A",
+      "rounds": 1,
+      "force_a_survivors": 1,
+      "force_b_survivors": 0,
+      "min_force_a_health": 9,
+      "force_b_total_health": 0
+    },
+    "description": "Overwhelming offensive power leads to instant victory",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "minimal_damage_high_defense",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 10.0, "defensive_power": 0.9, "staying_power": 20 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 10.0, "defensive_power": 0.9, "staying_power": 20 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": null,
+      "min_rounds": 10,
+      "max_rounds": 30,
+      "force_a_survivors": 0,
+      "force_b_survivors": 0
+    },
+    "description": "High mutual defense leads to long battle of attrition",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "fragile_ships_quick_battle",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 20.0, "defensive_power": 0.3, "staying_power": 2 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 20.0, "defensive_power": 0.3, "staying_power": 2 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": null,
+      "rounds": 1,
+      "force_a_survivors": 0,
+      "force_b_survivors": 0,
+      "force_a_total_health": 0,
+      "force_b_total_health": 0
+    },
+    "description": "Glass cannons - high offense, low staying power, quick mutual destruction",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "mixed_capabilities_balanced",
+    "inputs": {
+      "force_a": [
+        { "name": "Tank", "offensive_power": 5.0, "defensive_power": 0.7, "staying_power": 25 },
+        { "name": "Artillery", "offensive_power": 25.0, "defensive_power": 0.3, "staying_power": 5 }
+      ],
+      "force_b": [
+        { "name": "Balanced-1", "offensive_power": 15.0, "defensive_power": 0.5, "staying_power": 15 },
+        { "name": "Balanced-2", "offensive_power": 15.0, "defensive_power": 0.5, "staying_power": 15 }
+      ],
+      "random_seed": 42
+    },
+    "expected": {
+      "winner": "B",
+      "max_rounds": 6,
+      "force_a_survivors": 0,
+      "min_force_b_survivors": 1
+    },
+    "description": "Tank+Artillery vs two balanced ships, tests fleet composition strategy",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  },
+  {
+    "name": "deterministic_seed_reproducibility",
+    "inputs": {
+      "force_a": [
+        { "name": "Alpha-1", "offensive_power": 12.0, "defensive_power": 0.45, "staying_power": 8 }
+      ],
+      "force_b": [
+        { "name": "Bravo-1", "offensive_power": 13.0, "defensive_power": 0.42, "staying_power": 9 }
+      ],
+      "random_seed": 12345
+    },
+    "expected": {
+      "winner": "B",
+      "rounds": 2,
+      "force_a_survivors": 0,
+      "force_b_survivors": 1,
+      "force_a_total_health": 0,
+      "min_force_b_health": 1
+    },
+    "description": "Tests that random seed produces reproducible results",
+    "tolerance": { "abs": 1e-9, "rel": 1e-9 }
+  }
+]
