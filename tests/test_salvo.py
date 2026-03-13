@@ -1106,5 +1106,60 @@ class TestSalvoAdditionalCoverage(unittest.TestCase):
         self.assertEqual(len(results['battle_durations']), SalvoCombatModel.MONTE_CARLO_ITERATIONS)
 
 
+    def test_simple_simulation_zero_offensive_force_b(self):
+        """Regression: simple_simulation must not crash when Force B has zero offensive power.
+
+        When advantage_ratio is inf, (inf-1)/inf == nan, and int(nan) raises
+        ValueError.  The fix hard-codes full survival for the unopposed winner.
+        """
+        force_a = [
+            Ship("Warship A1", offensive_power=10, defensive_power=0.3, staying_power=5),
+            Ship("Warship A2", offensive_power=8,  defensive_power=0.3, staying_power=4),
+        ]
+        # Force B has ships but cannot fire (convoy / support fleet scenario)
+        force_b = [
+            Ship("Convoy B1", offensive_power=0, defensive_power=0.3, staying_power=3),
+            Ship("Convoy B2", offensive_power=0, defensive_power=0.3, staying_power=2),
+        ]
+
+        model = SalvoCombatModel(force_a, force_b, random_seed=42)
+        # Must not raise ValueError
+        result = model.simple_simulation(quiet=True)
+
+        self.assertEqual(result['outcome'], 'Force A Victory')
+        # Unopposed winner keeps all ships
+        self.assertEqual(result['force_a_survivors'], len(force_a))
+        self.assertEqual(result['force_b_survivors'], 0)
+
+    def test_simple_simulation_zero_offensive_force_a(self):
+        """Regression: simple_simulation must not crash when Force A has zero offensive power."""
+        force_a = [
+            Ship("Convoy A1", offensive_power=0, defensive_power=0.3, staying_power=3),
+        ]
+        force_b = [
+            Ship("Warship B1", offensive_power=10, defensive_power=0.3, staying_power=5),
+            Ship("Warship B2", offensive_power=8,  defensive_power=0.3, staying_power=4),
+        ]
+
+        model = SalvoCombatModel(force_a, force_b, random_seed=42)
+        result = model.simple_simulation(quiet=True)
+
+        self.assertEqual(result['outcome'], 'Force B Victory')
+        self.assertEqual(result['force_a_survivors'], 0)
+        self.assertEqual(result['force_b_survivors'], len(force_b))
+
+    def test_simple_simulation_zero_offensive_single_ship(self):
+        """Regression: single-ship zero-offensive force does not crash."""
+        force_a = [Ship("Gunship", offensive_power=15, defensive_power=0.2, staying_power=6)]
+        force_b = [Ship("Target",  offensive_power=0,  defensive_power=0.2, staying_power=4)]
+
+        model = SalvoCombatModel(force_a, force_b, random_seed=0)
+        result = model.simple_simulation(quiet=True)
+
+        self.assertEqual(result['outcome'], 'Force A Victory')
+        self.assertEqual(result['force_a_survivors'], 1)
+        self.assertEqual(result['force_b_survivors'], 0)
+
+
 if __name__ == '__main__':
     unittest.main()

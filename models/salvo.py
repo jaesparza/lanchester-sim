@@ -314,15 +314,23 @@ class SalvoCombatModel:
             # Determine winner based on total effectiveness
             if total_a_offensive > total_b_offensive:
                 winner = "Force A Victory"
-                # Estimate survivors based on offensive advantage
+                # Estimate survivors based on offensive advantage.
+                # When the loser has zero offensive power they cannot inflict any
+                # casualties, so the entire winning force survives.
                 advantage_ratio = total_a_offensive / total_b_offensive if total_b_offensive > 0 else float('inf')
-                estimated_survivors_a = max(1, int(len(self.force_a) * (advantage_ratio - 1) / advantage_ratio))
+                if advantage_ratio == float('inf'):
+                    estimated_survivors_a = len(self.force_a)
+                else:
+                    estimated_survivors_a = max(1, int(len(self.force_a) * (advantage_ratio - 1) / advantage_ratio))
                 estimated_survivors_b = 0
             elif total_b_offensive > total_a_offensive:
                 winner = "Force B Victory"
                 advantage_ratio = total_b_offensive / total_a_offensive if total_a_offensive > 0 else float('inf')
                 estimated_survivors_a = 0
-                estimated_survivors_b = max(1, int(len(self.force_b) * (advantage_ratio - 1) / advantage_ratio))
+                if advantage_ratio == float('inf'):
+                    estimated_survivors_b = len(self.force_b)
+                else:
+                    estimated_survivors_b = max(1, int(len(self.force_b) * (advantage_ratio - 1) / advantage_ratio))
             else:
                 # Equal offensive power case - always fall back to full simulation
                 # Simplified logic cannot reliably predict outcomes for evenly matched forces
