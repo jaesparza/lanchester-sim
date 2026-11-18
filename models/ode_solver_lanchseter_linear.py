@@ -129,98 +129,33 @@ class LanchesterLinearODESolver:
         """Integrate the linear-law ODEs and return sampled trajectories."""
         initial_state = np.array([self.A0, self.B0], dtype=float)
 
-        if initial_state[0] <= self.FORCE_ZERO_TOLERANCE and initial_state[1] <= self.FORCE_ZERO_TOLERANCE:
+        if (sample_times is None and t_span is None
+                and np.all(initial_state <= self.FORCE_ZERO_TOLERANCE)):
             zeros = np.zeros(1, dtype=float)
             time = np.zeros(1, dtype=float)
             return LinearODESolution(time, zeros, zeros, "Draw", 0.0, 0.0)
 
         times = self._prepare_sample_times(t_span, num_points, sample_times)
-        integration_times = times
-        prepend_zero = False
-        if integration_times[0] > 0.0:
-            integration_times = np.concatenate(([0.0], integration_times))
-            prepend_zero = True
+        winner, remaining, t_end = self.calculate_battle_outcome()
+        # Very long finite events are reported as infinite in the public summary.
+        stop_time = self._compute_elimination_time() if np.isinf(t_end) else t_end
+        terminal_state = np.array([
+            remaining if winner == "A" else 0.0,
+            remaining if winner == "B" else 0.0,
+        ])
+        forces = np.empty((times.size, 2), dtype=float)
+        state = initial_state
+        previous = 0.0
+        for idx, time in enumerate(times):
+            if time >= stop_time:
+                forces[idx:] = terminal_state
+                break
+            if time != previous:
+                state = self._rk4_step(previous, state, time - previous)
+            forces[idx] = state
+            previous = time
 
-        forces = np.zeros((integration_times.size, 2), dtype=float)
-        forces[0] = initial_state
-
-        current_state = initial_state.copy()
-
-        for idx in range(1, integration_times.size):
-            t_prev = integration_times[idx - 1]
-            dt = integration_times[idx] - t_prev
-
-            if dt < 0:
-                raise ValueError("sample_times must be monotonically increasing")
-            if dt == 0:
-                forces[idx] = current_state
-                continue
-
-            current_state = self._rk4_step(t_prev, current_state, dt)
-            current_state = np.maximum(current_state, 0.0)
-            forces[idx] = current_state
-
-        force_a_full = np.clip(forces[:, 0], 0.0, None)
-        force_b_full = np.clip(forces[:, 1], 0.0, None)
-
-        if prepend_zero:
-            force_a = force_a_full[1:]
-            force_b = force_b_full[1:]
-        else:
-            force_a = force_a_full
-            force_b = force_b_full
-
-        # Find when either force is eliminated
-        elimination_mask = (force_a_full <= self.ZERO_TOLERANCE) | (force_b_full <= self.ZERO_TOLERANCE)
-        elimination_indices = np.where(elimination_mask)[0]
-
-        if elimination_indices.size:
-            # Battle ends when first force is eliminated
-            elimination_idx = elimination_indices[0]
-            t_end = float(integration_times[elimination_idx])
-
-            # Determine winner based on which force survived at elimination time
-            a_at_end = float(force_a_full[elimination_idx])
-            b_at_end = float(force_b_full[elimination_idx])
-
-            if a_at_end <= self.ZERO_TOLERANCE and b_at_end <= self.ZERO_TOLERANCE:
-                winner = "Draw"
-                remaining = 0.0
-            elif a_at_end <= self.ZERO_TOLERANCE:
-                winner = "B"
-                remaining = b_at_end
-            elif b_at_end <= self.ZERO_TOLERANCE:
-                winner = "A"
-                remaining = a_at_end
-            else:
-                # Should not happen if elimination_mask is correct
-                winner = "Draw"
-                remaining = 0.0
-        else:
-            # No elimination detected in simulation time
-            t_end = float(integration_times[-1])
-            final_a = float(force_a_full[-1])
-            final_b = float(force_b_full[-1])
-
-            if self.alpha <= self.ZERO_TOLERANCE and self.beta <= self.ZERO_TOLERANCE:
-                # No attrition - draw with larger force surviving
-                winner = "Draw"
-                remaining = max(final_a, final_b)
-            else:
-                # Battle ongoing - determine winner based on analytical solution
-                analytical_winner, analytical_remaining, analytical_t_end = self.calculate_battle_outcome()
-                if np.isfinite(analytical_t_end) and analytical_t_end > t_end:
-                    # Battle will end later - return ongoing status
-                    winner = analytical_winner
-                    remaining = analytical_remaining
-                    t_end = analytical_t_end
-                else:
-                    # Battle should have ended - use analytical result
-                    winner = analytical_winner
-                    remaining = analytical_remaining
-                    t_end = analytical_t_end
-
-        return LinearODESolution(times, force_a, force_b, winner, t_end, remaining)
+        return LinearODESolution(times, forces[:, 0], forces[:, 1], winner, t_end, remaining)
 
     def calculate_battle_outcome(self) -> Tuple[str, float, float]:
         """Replicate the analytical outcome logic used by the linear model."""
@@ -275,17 +210,7 @@ class LanchesterLinearODESolver:
             raise ValueError("time array must be monotonically increasing")
 
         solution = self.solve(sample_times=time_array)
-        force_a = solution.force_a
-        force_b = solution.force_b
-
-        if force_a.size < time_array.size:
-            pad_length = time_array.size - force_a.size
-            pad_a = np.full(pad_length, force_a[-1])
-            pad_b = np.full(pad_length, force_b[-1])
-            force_a = np.concatenate([force_a, pad_a])
-            force_b = np.concatenate([force_b, pad_b])
-
-        return force_a, force_b
+        return solution.force_a, solution.force_b
 
     def numerical_solution(self, t_max: Optional[float] = None, num_points: Optional[int] = None):
         """Compute a dictionary matching the analytical solver output format."""

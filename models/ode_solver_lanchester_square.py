@@ -35,6 +35,8 @@ class LanchesterSquareODESolver:
     ZERO_TOLERANCE = 1e-9
     TIME_EXTENSION_FACTOR = 1.2
     TIME_MINIMUM_EXTENSION = 0.5
+    # Bound the RK4 step in units of the system's characteristic time.
+    MAX_SCALED_STEP = 0.01
     DEFAULT_TIME_POINTS = 1000
     DRAW_PREVIEW_WINDOW = 5.0
     LARGE_TIME_THRESHOLD = 1e15
@@ -127,6 +129,11 @@ class LanchesterSquareODESolver:
         invariant: float,
     ) -> float:
         """Estimate the battle end time based on analytical expressions."""
+        stop_time = self._integration_end_time(winner, invariant)
+        return float("inf") if stop_time > self.LARGE_TIME_THRESHOLD else stop_time
+
+    def _integration_end_time(self, winner: str, invariant: float) -> float:
+        """Return the event time before applying the public reporting threshold."""
         if winner == "A":
             if self.beta > 0 and self.alpha > 0:
                 ratio = np.sqrt(self.beta / self.alpha)
@@ -164,9 +171,6 @@ class LanchesterSquareODESolver:
                 else:
                     t_end = 1.0
 
-        if np.isfinite(t_end) and t_end > self.LARGE_TIME_THRESHOLD:
-            t_end = float("inf")
-
         return t_end
 
     # ------------------------------------------------------------------
@@ -179,64 +183,34 @@ class LanchesterSquareODESolver:
     ) -> SquareODESolution:
         """Integrate the square-law ODEs and return sampled trajectories."""
         winner, remaining_strength, invariant = self.calculate_battle_outcome()
-        analytical_t_end = self.calculate_battle_end_time(winner, remaining_strength, invariant)
-        t_end = analytical_t_end
-
+        stop_time = self._integration_end_time(winner, invariant)
+        t_end = float("inf") if stop_time > self.LARGE_TIME_THRESHOLD else stop_time
         times = self._prepare_time_array(t_end, num_points, sample_times)
-        integration_times = times
-        prepend_zero = False
-        if integration_times[0] > 0.0:
-            integration_times = np.concatenate(([0.0], integration_times))
-            prepend_zero = True
+        rate = np.sqrt(self.alpha) * np.sqrt(self.beta)
+        if winner == "Draw" and np.isinf(stop_time):
+            # The balanced system has only a decaying mode. Evaluating it directly
+            # avoids exciting the growing mode through roundoff on long intervals.
+            decay = np.exp(-rate * times)
+            return SquareODESolution(times, self.A0 * decay, self.B0 * decay,
+                                     winner, t_end, remaining_strength)
 
-        forces = np.zeros((integration_times.size, 2), dtype=float)
-        forces[0] = np.array([self.A0, self.B0], dtype=float)
+        forces = np.empty((times.size, 2))
+        state = np.array([self.A0, self.B0])
+        previous = 0.0
+        for idx, time in enumerate(times):
+            if time >= stop_time:
+                forces[idx:] = self._post_battle_state(winner, remaining_strength)
+                break
+            dt = time - previous
+            if dt > 0:
+                steps = max(1, int(np.ceil(rate * dt / self.MAX_SCALED_STEP)))
+                step = dt / steps
+                for n in range(steps):
+                    state = self._rk4_step(previous + n * step, state, step)
+            forces[idx] = np.maximum(state, 0.0)
+            previous = time
 
-        current_state = forces[0].copy()
-        for idx in range(1, integration_times.size):
-            dt = integration_times[idx] - integration_times[idx - 1]
-            if dt < 0:
-                raise ValueError("time array must be monotonically increasing")
-            if dt == 0:
-                forces[idx] = current_state
-                continue
-
-            if np.isfinite(t_end) and integration_times[idx - 1] >= t_end:
-                current_state = self._post_battle_state(winner, remaining_strength)
-            elif np.isfinite(t_end) and integration_times[idx] >= t_end:
-                # Step up to t_end only once to avoid overshoot, then clamp
-                remaining_dt = t_end - integration_times[idx - 1]
-                if remaining_dt > 0:
-                    temp_state = self._rk4_step(integration_times[idx - 1], current_state, remaining_dt)
-                    temp_state = np.maximum(temp_state, 0.0)
-                else:
-                    temp_state = current_state
-                current_state = self._post_battle_state(winner, remaining_strength)
-            else:
-                current_state = self._rk4_step(integration_times[idx - 1], current_state, dt)
-                current_state = np.maximum(current_state, 0.0)
-
-            forces[idx] = current_state
-
-        force_a_full = np.clip(forces[:, 0], 0.0, None)
-        force_b_full = np.clip(forces[:, 1], 0.0, None)
-
-        if prepend_zero:
-            force_a = force_a_full[1:]
-            force_b = force_b_full[1:]
-        else:
-            force_a = force_a_full
-            force_b = force_b_full
-
-        # Determine numerical end time based on trajectories (fallback to analytical if necessary)
-        elimination_mask = (force_a_full <= self.ZERO_TOLERANCE) | (force_b_full <= self.ZERO_TOLERANCE)
-        elimination_indices = np.where(elimination_mask)[0]
-        if elimination_indices.size:
-            numerical_end = float(integration_times[elimination_indices[0]])
-        else:
-            numerical_end = float(integration_times[-1])
-
-        return SquareODESolution(times, force_a, force_b, winner, analytical_t_end, remaining_strength)
+        return SquareODESolution(times, forces[:, 0], forces[:, 1], winner, t_end, remaining_strength)
 
     def _post_battle_state(self, winner: str, remaining_strength: float) -> np.ndarray:
         if winner == "A":

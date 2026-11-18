@@ -9,6 +9,7 @@ It addresses import path issues that occur when running model files directly.
 import math
 import sys
 import os
+import numpy as np
 
 # Add project root to Python path to enable model imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -180,6 +181,18 @@ def main():
 
         square_draw = LanchesterSquare(A0=100, B0=100, alpha=0.01, beta=0.01)
         verify_square_implementations("Equal Forces Draw", square_draw)
+
+        for points in (2, 301):
+            times = np.linspace(0, 3, points)
+            linear = LanchesterLinearODESolver(3, 1, 1, 1).solve(sample_times=times)
+            elapsed = np.minimum(times, 1)
+            np.testing.assert_allclose(linear.force_a, 3 - elapsed, atol=1e-12)
+            np.testing.assert_allclose(linear.force_b, 1 - elapsed, atol=1e-12)
+
+            square = LanchesterSquareODESolver(1, 1, 1, 1).solve(sample_times=times)
+            for values in (square.force_a, square.force_b):
+                np.testing.assert_allclose(values, np.exp(-times), rtol=1e-8, atol=0)
+            print(f"   ✅ Linear and square ODE trajectories match reference curves at {points} samples")
         print()
 
         print("✅ All model examples completed successfully!")
