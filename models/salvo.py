@@ -485,7 +485,7 @@ class SalvoCombatModel:
         Run the complete simulation with enhanced battle outcome analysis.
 
         Parameters:
-        max_rounds (int): Maximum rounds to simulate (uses DEFAULT_MAX_ROUNDS if None)
+        max_rounds (int): Total round limit including previous runs (defaults to DEFAULT_MAX_ROUNDS)
         quiet (bool): If True, suppress output and run silently
 
         Returns:
@@ -516,7 +516,7 @@ class SalvoCombatModel:
             print("\n" + "="*50)
 
         # Execute battle rounds
-        while self.execute_round() and self.round_number < max_rounds:
+        while self.round_number < max_rounds and self.execute_round():
             # Print round summary
             if not quiet:
                 round_log = self.battle_log[-1]
@@ -685,7 +685,7 @@ class SalvoCombatModel:
             test_sim = SalvoCombatModel(test_force_a, test_force_b, random_seed=i)
 
             # Execute battle quietly
-            while test_sim.execute_round() and test_sim.round_number < self.DEFAULT_MAX_ROUNDS:
+            while test_sim.round_number < self.DEFAULT_MAX_ROUNDS and test_sim.execute_round():
                 pass
 
             # Get results
