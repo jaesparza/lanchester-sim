@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
+import math
+
 import numpy as np
 
 __all__ = ["LinearODESolution", "LanchesterLinearODESolver"]
@@ -33,7 +35,6 @@ class LanchesterLinearODESolver:
     FORCE_ZERO_TOLERANCE = 1e-12
     ZERO_TOLERANCE = 1e-9
     ELIMINATION_TIME_REL_TOL = 1e-12
-    ELIMINATION_TIME_ABS_TOL = 1e-9
     TIME_EXTENSION_FACTOR = 1.2
     TIME_MINIMUM_EXTENSION = 1.0
     DEFAULT_TIME_POINTS = 1000
@@ -137,8 +138,6 @@ class LanchesterLinearODESolver:
 
         times = self._prepare_sample_times(t_span, num_points, sample_times)
         winner, remaining, t_end = self.calculate_battle_outcome()
-        # Very long finite events are reported as infinite in the public summary.
-        stop_time = self._compute_elimination_time() if np.isinf(t_end) else t_end
         terminal_state = np.array([
             remaining if winner == "A" else 0.0,
             remaining if winner == "B" else 0.0,
@@ -147,7 +146,7 @@ class LanchesterLinearODESolver:
         state = initial_state
         previous = 0.0
         for idx, time in enumerate(times):
-            if time >= stop_time:
+            if time >= t_end:
                 forces[idx:] = terminal_state
                 break
             if time != previous:
@@ -172,12 +171,9 @@ class LanchesterLinearODESolver:
         t_A_eliminated = self.A0 / self.beta if self.beta > 0 else np.inf
         t_B_eliminated = self.B0 / self.alpha if self.alpha > 0 else np.inf
 
-        times_equal = np.isclose(
-            t_A_eliminated,
-            t_B_eliminated,
-            rtol=self.ELIMINATION_TIME_REL_TOL,
-            atol=self.ELIMINATION_TIME_ABS_TOL,
-        )
+        # A relative tolerance keeps the comparison independent of the time unit.
+        times_equal = math.isclose(t_A_eliminated, t_B_eliminated,
+                                   rel_tol=self.ELIMINATION_TIME_REL_TOL)
 
         if times_equal:
             t_end = max(t_A_eliminated, t_B_eliminated)
@@ -191,9 +187,6 @@ class LanchesterLinearODESolver:
             t_end = t_B_eliminated
             winner = "A"
             remaining_strength = max(0.0, self.A0 - self.beta * t_end)
-
-        if np.isfinite(t_end) and t_end > 1e15:
-            t_end = np.inf
 
         return winner, remaining_strength, t_end
 
@@ -222,6 +215,8 @@ class LanchesterLinearODESolver:
         if t_max is None:
             if np.isinf(t_end):
                 t_max = self.STATIC_PREVIEW_WINDOW
+            elif t_end > np.finfo(float).max / self.TIME_EXTENSION_FACTOR:
+                t_max = t_end
             else:
                 t_max = max(t_end * self.TIME_EXTENSION_FACTOR, t_end + self.TIME_MINIMUM_EXTENSION)
 

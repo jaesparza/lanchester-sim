@@ -16,7 +16,7 @@ The items below are ordered by impact on the reported trajectories and results.
 
 - [x] **C4. Preserve initially empty sides in both square implementations.** An empty side at the start gives an end time of zero and leaves all initial values in place. Both models report the nonempty side as the winner or a draw when both sides start empty. [Boundary tests](../tests/test_square_empty_state.py)
 
-- [ ] **C5. Preserve linear outcomes under a change of time units.** Multiplying both unit rates by `1e10` changed the result for (2, 1) to a draw in both implementations. **Done when** rescaling both rates preserves the winner and remaining value and scales the end time inversely. [Linear model](../models/lanchester_linear.py) · [Linear solver](../models/ode_solver_lanchseter_linear.py)
+- [x] **C5. Preserve linear outcomes under a change of time units.** Both linear implementations compare stopping times using relative tolerance and retain representable finite end times above the former cutoff. Regression cases rescale the rates for either winner, an exact tie, and a zero rate. [Linear model](../models/lanchester_linear.py) · [Linear solver](../models/ode_solver_lanchseter_linear.py)
 
 - [ ] **C6. Honor the salvo round limit before advancing state.** A zero-round run executed one round. **Done when** a zero-round budget preserves initial state and history, and a run at its limit cannot execute another round. [Round loop](../models/salvo.py)
 
