@@ -14,7 +14,7 @@ The items below are ordered by impact on the reported trajectories and results.
 
 - [x] **C3. Make ODE accuracy independent of the requested output spacing.** The square solver bounds its internal RK4 steps and evaluates balanced decay directly. The linear solver stops at the event even when it falls between samples. Both linear APIs agree on the event time and state. The consistency runner checks both trajectories against reference curves on sparse and dense grids. [Sampling tests](../tests/test_ode_sampling.py) · [Consistency runner](../examples/run_examples.py)
 
-- [ ] **C4. Preserve initially empty sides in both square implementations.** For initial values (2, 0) and rates (0, 1), the analytical implementation reports B as the winner and the ODE solver reports a draw. **Done when** both implementations retain (2, 0), report A at time zero, and pass the corresponding case with sides reversed. [Square model](../models/lanchester_square.py) · [Square solver](../models/ode_solver_lanchester_square.py)
+- [x] **C4. Preserve initially empty sides in both square implementations.** An empty side at the start gives an end time of zero and leaves all initial values in place. Both models report the nonempty side as the winner or a draw when both sides start empty. [Boundary tests](../tests/test_square_empty_state.py)
 
 - [ ] **C5. Preserve linear outcomes under a change of time units.** Multiplying both unit rates by `1e10` changed the result for (2, 1) to a draw in both implementations. **Done when** rescaling both rates preserves the winner and remaining value and scales the end time inversely. [Linear model](../models/lanchester_linear.py) · [Linear solver](../models/ode_solver_lanchseter_linear.py)
 

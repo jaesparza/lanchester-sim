@@ -67,6 +67,12 @@ class LanchesterSquare:
         Returns:
         tuple: (winner, remaining_strength, invariant)
         """
+        if self.A0 == 0:
+            winner = "Draw" if self.B0 == 0 else "B"
+            return winner, self.B0, -self.beta * self.B0**2
+        if self.B0 == 0:
+            return "A", self.A0, self.alpha * self.A0**2
+
         # Handle degenerate cases first (one-sided combat)
         if self.alpha == 0 and self.beta > 0:
             # Only B can inflict casualties → B wins
@@ -111,6 +117,9 @@ class LanchesterSquare:
         Returns:
         float: Battle end time
         """
+        if self.A0 == 0 or self.B0 == 0:
+            return 0.0
+
         if winner == 'A':
             # Time when B is eliminated
             if self.beta > 0 and self.alpha > 0:
@@ -282,12 +291,9 @@ class LanchesterSquare:
         Returns:
         tuple: (A_t, B_t) arrays of force strengths
         """
-        # Handle zero effectiveness edge case
-        if self.alpha == 0 and self.beta == 0:
-            # No combat effectiveness - forces remain constant
-            A_t = np.full_like(t, self.A0)
-            B_t = np.full_like(t, self.B0)
-            return A_t, B_t
+        # An initially terminal state or two zero rates leave both values unchanged.
+        if self.A0 == 0 or self.B0 == 0 or (self.alpha == 0 and self.beta == 0):
+            return np.full_like(t, self.A0, dtype=float), np.full_like(t, self.B0, dtype=float)
 
         if winner == 'Draw' and self.alpha > 0 and self.beta > 0 and np.isinf(t_end):
             # In an exact draw both components follow the same exponential decay.
