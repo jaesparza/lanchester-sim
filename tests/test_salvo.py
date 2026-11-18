@@ -335,6 +335,31 @@ class TestSalvoCombatModel(unittest.TestCase):
         except (ImportError, TypeError):
             self.skipTest("Matplotlib backend issue")
 
+    def test_zero_round_limit_preserves_initial_state(self):
+        model = self.single_model
+        with mock.patch.object(model, 'execute_round', wraps=model.execute_round) as advance:
+            outcome = model.run_simulation(max_rounds=0, quiet=True)
+        advance.assert_not_called()
+        self.assertEqual(outcome, model.determine_battle_outcome())
+        self.assertEqual(model.round_number, 0)
+        self.assertEqual(model.battle_log, [])
+        self.assertEqual((self.single_a[0].current_hits, self.single_b[0].current_hits), (0, 0))
+
+    def test_repeated_run_observes_total_round_limit(self):
+        model = SalvoCombatModel([Ship("A", 0, 0, 1)], [Ship("B", 0, 0, 1)])
+        with mock.patch.object(model, 'execute_round', wraps=model.execute_round) as advance:
+            for limit, expected in ((1, 1), (1, 1), (0, 1), (3, 3)):
+                model.run_simulation(max_rounds=limit, quiet=True)
+                self.assertEqual(advance.call_count, expected)
+                self.assertEqual(model.round_number, expected)
+                self.assertEqual([entry['round'] for entry in model.battle_log],
+                                 list(range(1, expected + 1)))
+
+    def test_monte_carlo_observes_zero_round_limit(self):
+        with mock.patch.object(self.model, 'DEFAULT_MAX_ROUNDS', 0):
+            result = self.model.run_monte_carlo_analysis(iterations=2)
+        self.assertEqual(result['battle_durations'], [0, 0])
+
     def test_phantom_round_prevention_regression(self):
         """Regression test for phantom round bug prevention.
 

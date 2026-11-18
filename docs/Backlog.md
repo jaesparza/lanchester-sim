@@ -18,7 +18,7 @@ The items below are ordered by impact on the reported trajectories and results.
 
 - [ ] **C5. Preserve linear outcomes under a change of time units.** Multiplying both unit rates by `1e10` changed the result for (2, 1) to a draw in both implementations. **Done when** rescaling both rates preserves the winner and remaining value and scales the end time inversely. [Linear model](../models/lanchester_linear.py) · [Linear solver](../models/ode_solver_lanchseter_linear.py)
 
-- [ ] **C6. Honor the salvo round limit before advancing state.** A zero-round run executed one round. **Done when** a zero-round budget preserves initial state and history, and a run at its limit cannot execute another round. [Round loop](../models/salvo.py)
+- [x] **C6. Honor the salvo round limit before advancing state.** Single and Monte Carlo runs check the round budget before each step. A repeated single run resumes only when its total limit exceeds its current round count. [Round loop](../models/salvo.py) · [Round-limit tests](../tests/test_salvo.py)
 
 - [ ] **C7. Count empty inputs consistently in Monte Carlo runs.** The single-run API recognizes empty lists, but the ensemble raises `KeyError` on the same outcome. **Done when** all three empty-input combinations agree with a single run and their outcome counts sum to the requested iterations. Seed isolation is tracked in item 6 below. [Simulation and ensemble](../models/salvo.py)
 
