@@ -38,10 +38,10 @@ git clone https://github.com/jaesparza/lanchester-sim.git
 cd lanchester-sim
 
 # Install dependencies
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 
 # Install as package (optional)
-pip install -e .
+python3 -m pip install -e .
 ```
 
 ## Quick Start
@@ -67,10 +67,15 @@ result = simulation.run_simulation()
 ```
 
 ## Examples
-Run the examples file to see all models in action:
+
+Run these commands from the repository root after installing the dependencies.
 
 ```bash
-python examples.py
+# Display comparison plots for the three models.
+python3 examples/examples.py
+
+# Run the console examples and check the analytical and numerical results.
+python3 examples/run_examples.py
 ```
 
 ## Key Features

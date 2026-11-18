@@ -2,8 +2,9 @@
 """
 Simple examples demonstrating the Lanchester simulation models.
 
-Run this file directly to see all models in action:
-    python examples.py
+Run from the repository root to display the model comparisons.
+
+    python3 examples/examples.py
 """
 
 import sys
