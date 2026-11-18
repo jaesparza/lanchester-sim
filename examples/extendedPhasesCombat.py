@@ -34,7 +34,8 @@ def run_phase_simulation(initial_A, initial_B, phases_config, model_type='square
     initial_A: Initial strength of Force A
     initial_B: Initial strength of Force B
     phases_config: List of phase dictionaries with keys:
-        - duration: Time length of phase (None = until winner determined)
+        - duration: Length of phase (None = until completion, or 100 time units
+          if the model gives an infinite end time)
         - alpha: Effectiveness of A against B
         - beta: Effectiveness of B against A
         - A_reinforcements: Forces added to A at end of phase (default 0)
@@ -69,29 +70,19 @@ def run_phase_simulation(initial_A, initial_B, phases_config, model_type='square
         else:
             battle = LanchesterLinear(current_A, current_B, phase['alpha'], phase['beta'])
 
-        # Determine phase duration
-        duration = phase.get('duration')
-        if duration is None:
-            # Run until battle concludes
-            solution = battle.analytical_solution()
-            actual_duration = solution['battle_end_time']
+        actual_duration = phase.get('duration')
+        if actual_duration is None:
+            outcome = battle.calculate_battle_outcome()
+            if model_type == 'square':
+                actual_duration = battle.calculate_battle_end_time(*outcome)
+            else:
+                _, _, actual_duration = outcome
             if np.isinf(actual_duration):
-                # Draw - use default time window
                 actual_duration = 100
-        else:
-            solution = battle.analytical_solution(t_max=duration)
-            actual_duration = duration
 
-        # Get forces at end of phase duration
-        if np.isinf(actual_duration):
-            end_idx = -1
-        else:
-            # Find the index closest to phase end
-            time_array = solution['time']
-            end_idx = np.argmin(np.abs(time_array - actual_duration))
-
-        end_A = solution['A'][end_idx]
-        end_B = solution['B'][end_idx]
+        solution = battle.analytical_solution(t_max=actual_duration)
+        end_A = solution['A'][-1]
+        end_B = solution['B'][-1]
 
         print(f"Phase duration: {actual_duration:.1f} time units")
         print(f"Combat results: A = {end_A:.1f}, B = {end_B:.1f}")
