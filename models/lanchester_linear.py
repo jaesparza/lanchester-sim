@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,9 +20,7 @@ class LanchesterLinear:
     DEFAULT_TIME_POINTS = 1000       # Number of time points for trajectory calculations. Balances smoothness with performance.
     SIMPLE_TIME_EXTENSION = 1.5      # 50% time extension for simple analytical solution (needs more padding for linear trajectories)
     SIMPLE_MINIMUM_TIME = 2.0        # Minimum visualization time for simple solution to show force dynamics clearly
-    LARGE_TIME_THRESHOLD = 1e15      # Times above this are treated as effectively infinite for numerical stability
     ELIMINATION_TIME_REL_TOL = 1e-12 # Relative tolerance when comparing elimination times (prevents floating tie flips)
-    ELIMINATION_TIME_ABS_TOL = 1e-9  # Absolute tolerance for near-zero time comparisons
 
     # Constants for plotting and visualization
     PLOT_GRID_ALPHA = 0.3            # Grid transparency for clear visibility without overwhelming data
@@ -72,12 +72,9 @@ class LanchesterLinear:
         t_B_eliminated = self.B0 / self.alpha if self.alpha > 0 else np.inf
 
         # Battle ends when first force is eliminated
-        times_equal = np.isclose(
-            t_A_eliminated,
-            t_B_eliminated,
-            rtol=self.ELIMINATION_TIME_REL_TOL,
-            atol=self.ELIMINATION_TIME_ABS_TOL
-        )
+        # A relative tolerance keeps the comparison independent of the time unit.
+        times_equal = math.isclose(t_A_eliminated, t_B_eliminated,
+                                   rel_tol=self.ELIMINATION_TIME_REL_TOL)
 
         if times_equal:
             t_end = max(t_A_eliminated, t_B_eliminated)
@@ -94,10 +91,6 @@ class LanchesterLinear:
             t_end = t_B_eliminated
             winner = 'A'
             remaining_strength = max(0.0, self.A0 - self.beta * t_end)
-
-        # Treat extremely large finite times as infinite for numerical stability
-        if np.isfinite(t_end) and t_end > self.LARGE_TIME_THRESHOLD:
-            t_end = np.inf
 
         return winner, remaining_strength, t_end
 
@@ -164,6 +157,8 @@ class LanchesterLinear:
             if np.isinf(t_end):
                 # For infinite battles (zero effectiveness), use a reasonable time window
                 t_max = 10.0  # Show static forces for 10 time units
+            elif t_end > np.finfo(float).max / self.TIME_EXTENSION_FACTOR:
+                t_max = t_end
             else:
                 t_max = max(t_end * self.TIME_EXTENSION_FACTOR, t_end + self.TIME_MINIMUM_EXTENSION)
 
