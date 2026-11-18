@@ -103,6 +103,12 @@ class LanchesterSquareODESolver:
     # ------------------------------------------------------------------
     def calculate_battle_outcome(self) -> Tuple[str, float, float]:
         """Determine winner, remaining strength, and invariant."""
+        if self.A0 == 0:
+            winner = "Draw" if self.B0 == 0 else "B"
+            return winner, self.B0, -self.beta * self.B0**2
+        if self.B0 == 0:
+            return "A", self.A0, self.alpha * self.A0**2
+
         if self.alpha == 0 and self.beta == 0:
             winner = "Draw"
             remaining_strength = max(self.A0, self.B0)
@@ -134,6 +140,9 @@ class LanchesterSquareODESolver:
 
     def _integration_end_time(self, winner: str, invariant: float) -> float:
         """Return the event time before applying the public reporting threshold."""
+        if self.A0 == 0 or self.B0 == 0:
+            return 0.0
+
         if winner == "A":
             if self.beta > 0 and self.alpha > 0:
                 ratio = np.sqrt(self.beta / self.alpha)
