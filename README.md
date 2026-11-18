@@ -7,21 +7,17 @@
 
 Scripts for simulating and analyzing military engagements using classical combat models. This repository implements three foundational approaches to quantitative battle analysis, each suited for different combat scenarios and providing unique strategic insights.
 
- ## Combat Models
+## Combat Models
 
-  ### **Lanchester Linear Law**
-  *Guerrilla warfare and close combat*
-  - Models individual duels where combatants engage one-on-one
-  - Linear attrition: `dA/dt = -βB`, `dB/dt = -αA`
-  - Winner determined by initial advantage: `αA₀ - βB₀`
-  - Best for: Hand-to-hand combat, guerrilla tactics, small unit actions
+In the two Lanchester models, `A₀` and `B₀` are the starting values. The coefficient `α` governs the loss of B and `β` governs the loss of A. The equations below describe the interval while both values are positive.
 
-  ### **Lanchester Square Law**
-  *Modern ranged combat with concentration effects*
-  - Models ranged warfare where all units can engage all enemy units
-  - Square law attrition: `dA/dt = -βB·A`, `dB/dt = -αA·B`
-  - Quadratic advantage from concentration: Winner ∝ `√(A₀² - B₀²)`
-  - Best for: Artillery duels, air combat, modern battlefieldengagements
+### Lanchester Linear Law
+
+Each side loses a constant amount per unit time. The equations are `dA/dt = −β` and `dB/dt = −α`, so the trajectories are straight lines. With positive rates the first side to reach zero sets the stopping time, `min(A₀/β, B₀/α)`.
+
+### Lanchester Square Law
+
+Each side's rate of loss scales with the current value of the other side. The equations are `dA/dt = −βB` and `dB/dt = −αA`. With positive rates and equal weighted starting values (`αA₀² = βB₀²`), both sides decay exponentially toward zero and the model reports an infinite end time.
 
 ### **Salvo Combat Model**
   *Naval and missile warfare*
@@ -83,8 +79,8 @@ python examples.py
 
 | Model | Best For | Key Insight |
 |-------|----------|-------------|
-| Linear Law | Hand-to-hand, guerrilla warfare | Winner = αA₀ - βB₀ |
-| Square Law | Modern ranged combat | Winner = √(A₀² - B₀²) |
+| Linear Law | Constant loss rates | The weighted difference `αA − βB` is constant. |
+| Square Law | Loss rates proportional to the opposing value | The weighted difference of squares `αA² − βB²` is constant. |
 | Salvo Model | Naval/missile combat | Discrete rounds, defensive systems |
 
 For prioritized improvements and their acceptance criteria, see the [improvement backlog](docs/Backlog.md).

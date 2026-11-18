@@ -1,21 +1,13 @@
 Short version: you’ve done the “hello world” of combat models. Next steps are (1) make them realistic, (2) make them stochastic, (3) make them multi-something (heterogeneous forces, domains, layers), and (4) fit/validate against data. Here’s a concrete roadmap.
 
-## 0) Classical Lanchester laws and Salvo combat model (for reference)
-- **Lanchester Linear Law (guerrilla / aimed-fire context):**
-  \[
-  \frac{dR}{dt} = -k_B B, \quad \frac{dB}{dt} = -k_R R
-  \]
+## 0) Model reference
 
-- **Lanchester Square Law (modern aimed fire with concentration effects):**
-  \[
-  \frac{dR}{dt} = -k_B B, \quad \frac{dB}{dt} = -k_R R
-  \]
-  with the invariant
-  \[
-  k_R R^2 - k_B B^2 = \text{constant}
-  \]
+For the two Lanchester implementations, let `α` and `β` be constant coefficients and `A` and `B` be positive current values.
 
-- **Salvo combat model (discrete-time / engineering reference):**  
+- **Linear law.** The rates are `dA/dt = −β` and `dB/dt = −α`. The quantity `αA − βB` stays constant.
+- **Square law.** The coupled rates are `dA/dt = −βB` and `dB/dt = −αA`. The quantity `αA² − βB²` stays constant.
+- **Salvo model.** The package simulates discrete rounds. The following formulas describe potential extensions.
+
   Basic idea: model a finite number of missiles launched in discrete salvos; each missile can be intercepted by successive defense layers; survivors may hit targets with some hit probability. Copy-paste-ready formulas:
 
   - Multi-layer independent interception (expected leakers):
