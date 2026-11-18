@@ -8,16 +8,17 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # GitHub publishes x64 builds for the full Python 3.8–3.12 matrix on 24.04.
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        python-version: [3.8, 3.9, "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
 
