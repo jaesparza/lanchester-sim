@@ -282,9 +282,6 @@ class LanchesterSquare:
         Returns:
         tuple: (A_t, B_t) arrays of force strengths
         """
-        A_t = np.zeros_like(t)
-        B_t = np.zeros_like(t)
-
         # Handle zero effectiveness edge case
         if self.alpha == 0 and self.beta == 0:
             # No combat effectiveness - forces remain constant
@@ -292,6 +289,14 @@ class LanchesterSquare:
             B_t = np.full_like(t, self.B0)
             return A_t, B_t
 
+        if winner == 'Draw' and self.alpha > 0 and self.beta > 0 and np.isinf(t_end):
+            # In an exact draw both components follow the same exponential decay.
+            rate = np.sqrt(self.alpha) * np.sqrt(self.beta)
+            decay = np.exp(-rate * np.asarray(t, dtype=float))
+            return self.A0 * decay, self.B0 * decay
+
+        A_t = np.zeros_like(t)
+        B_t = np.zeros_like(t)
         exact_A = exact_B = None
         if self.alpha > 0 and self.beta > 0:
             if np.isinf(t_end):

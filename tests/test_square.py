@@ -416,6 +416,17 @@ class TestLanchesterSquare(unittest.TestCase):
                 self.assertTrue(np.all(solution['B'] >= 0),
                                f"Case {i}: Force B should be non-negative")
 
+    def test_balanced_analytical_trajectories_follow_exponential_decay(self):
+        for a0, b0, alpha, beta, rate in [(1, 1, 1, 1, 1), (2, 1, 1, 4, 2)]:
+            model = LanchesterSquare(a0, b0, alpha, beta)
+            for solve in (model.analytical_solution, model.simple_analytical_solution):
+                with self.subTest(initial=(a0, b0), method=solve.__name__):
+                    result = solve(t_max=3)
+                    decay = np.exp(-rate * result['time'])
+                    np.testing.assert_allclose(result['A'], a0 * decay, rtol=1e-12, atol=0)
+                    np.testing.assert_allclose(result['B'], b0 * decay, rtol=1e-12, atol=0)
+                    self.assertTrue(np.isinf(result['battle_end_time']))
+
     def test_draw_case_calculation_regression(self):
         """Regression test for exact draw vs near-draw time calculation.
 

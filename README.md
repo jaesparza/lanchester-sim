@@ -87,6 +87,8 @@ python examples.py
 | Square Law | Modern ranged combat | Winner = √(A₀² - B₀²) |
 | Salvo Model | Naval/missile combat | Discrete rounds, defensive systems |
 
+For prioritized improvements and their acceptance criteria, see the [improvement backlog](docs/Backlog.md).
+
 ## Resources
 
 * [Lanchester's laws](https://en.wikipedia.org/wiki/Lanchester's_laws)
