@@ -319,6 +319,17 @@ class TestSalvoCombatModel(unittest.TestCase):
         total_probability = sum(probabilities.values())
         self.assertAlmostEqual(total_probability, 100.0, places=1)  # Should sum to 100%
 
+    def test_monte_carlo_empty_inputs_match_single_run(self):
+        for force_a, force_b in (([], []), (self.force_a, []), ([], self.force_b)):
+            with self.subTest(a=len(force_a), b=len(force_b)):
+                model = SalvoCombatModel(force_a, force_b)
+                expected = model.run_simulation(quiet=True)
+                result = model.run_monte_carlo_analysis(iterations=3)
+                self.assertEqual(result['outcome_counts'][expected], 3)
+                self.assertEqual(sum(result['outcome_counts'].values()), 3)
+                self.assertEqual(result['outcome_probabilities'][expected], 100)
+                self.assertEqual(result['battle_durations'], [0, 0, 0])
+
     def test_plot_battle_progress_autoshow(self):
         """Ensure plot auto-show fires when no external axes are provided."""
         try:

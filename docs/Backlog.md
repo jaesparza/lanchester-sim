@@ -20,7 +20,7 @@ The items below are ordered by impact on the reported trajectories and results.
 
 - [x] **C6. Honor the salvo round limit before advancing state.** Single and Monte Carlo runs check the round budget before each step. A repeated single run resumes only when its total limit exceeds its current round count. [Round loop](../models/salvo.py) · [Round-limit tests](../tests/test_salvo.py)
 
-- [ ] **C7. Count empty inputs consistently in Monte Carlo runs.** The single-run API recognizes empty lists, but the ensemble raises `KeyError` on the same outcome. **Done when** all three empty-input combinations agree with a single run and their outcome counts sum to the requested iterations. Seed isolation is tracked in item 6 below. [Simulation and ensemble](../models/salvo.py)
+- [x] **C7. Count empty inputs consistently in Monte Carlo runs.** The ensemble counts the outcome returned by each single run, including all three empty-input combinations. Regression checks cover counts, percentages, and zero-round durations. [Simulation and ensemble](../models/salvo.py) · [Tests](../tests/test_salvo.py)
 
 ## First
 

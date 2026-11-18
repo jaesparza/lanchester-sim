@@ -691,7 +691,7 @@ class SalvoCombatModel:
             # Get results
             stats = test_sim.get_battle_statistics()
             outcome = stats['outcome']
-            results[outcome] += 1
+            results[outcome] = results.get(outcome, 0) + 1
             battle_durations.append(stats['rounds'])
             offensive_ratios.append(stats['offensive_ratio'])
 
